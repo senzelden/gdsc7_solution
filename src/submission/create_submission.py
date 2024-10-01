@@ -2,7 +2,7 @@ import dotenv
 
 from src.static.ChatBedrockWrapper import ChatBedrockWrapper
 from src.static.submission import Submission
-from src.submission.crews.basic_PIRLS_crew import BasicPIRLSCrew
+from src.submission.crews.advanced_PIRLS_crew import AdvancedPIRLSCrew
 
 dotenv.load_dotenv()
 
@@ -18,6 +18,6 @@ def create_submission(call_id: str) -> Submission:
         call_id=call_id
     )
 
-    crew = BasicPIRLSCrew(llm=llm)
+    crew = AdvancedPIRLSCrew(llm=llm)
     return crew
     # raise NotImplementedError('create_submission is not yet implemented.')
