@@ -2,7 +2,7 @@ import dotenv
 
 from src.static.ChatBedrockWrapper import ChatBedrockWrapper
 from src.static.submission import Submission
-# from src.submission.crews.basic_PIRLS_crew import BasicPIRLSCrew
+from src.submission.crews.basic_PIRLS_crew import BasicPIRLSCrew
 
 dotenv.load_dotenv()
 
