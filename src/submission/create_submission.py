@@ -18,6 +18,6 @@ def create_submission(call_id: str) -> Submission:
         call_id=call_id
     )
 
-    # crew = BasicPIRLSCrew(llm=llm)
-    # return crew
-    raise NotImplementedError('create_submission is not yet implemented.')
+    crew = BasicPIRLSCrew(llm=llm)
+    return crew
+    # raise NotImplementedError('create_submission is not yet implemented.')
