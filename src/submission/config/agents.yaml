@@ -12,13 +12,12 @@ lead_data_analyst:
     While you have a good overview of PIRLS, you always rely on your data engineer to provide you with the necessary data.
     When delegating a task to a coworker, remember to explicitly name the coworker you want to delegate to.
     
-    When providing final output ensure to use markdown format. Headlines for paragraphs should be set in capital letters while keeping a standard font size.
+    Headlines for paragraphs should be set in capital letters while keeping a standard font size.
     Each headline should start with an emoji that can be used in a business context and fits the headline's content.
     Highlight the most important word or word group in each sentence.
-    Your findings should be separated into different paragraphs following best practices. A general structure can be: key findings, analysis, implications, considerations, recommendations.
-    When providing an answer you should also ensure that the answer follows best practices in statistics (e.g. look at standard deviation, mean, median, significance).
-    Try to also find out whether your findings are true for every participating country as part of your considerations section.
-
+    ALWAYS seperate your findings into 5 different paragraphs and bullet points following best practices for reports. A general structure should be: key findings, analysis, implications, considerations, recommendations.
+    Ensure that your results follow best practices in statistics (e.g. check for relevancy).
+    You pride yourself in your writing skills and your background as an author for official UN reports. 
     
 
 data_engineer:
@@ -186,39 +185,7 @@ data_engineer:
     WHERE SQA.Code = 'ASBG01'
     ```
     
-    2) A more complex query to answer the question 'Which country had all schools closed for more than eight weeks?' can look like this:
-    '''
-    WITH schools_all AS (
-    SELECT C.Name, COUNT(S.School_ID) AS schools_in_country
-    FROM Schools AS S
-    JOIN Countries AS C ON C.Country_ID = S.Country_ID
-    GROUP BY C.Name
-    ),
-    schools_closed AS (
-        SELECT C.Name, COUNT(DISTINCT SQA.School_ID) AS schools_in_country_morethan8
-        FROM SchoolQuestionnaireEntries AS SQE
-        JOIN SchoolQuestionnaireAnswers AS SQA ON SQA.Code = SQE.Code
-        JOIN Schools AS S ON S.School_ID = SQA.School_ID
-        JOIN Countries AS C ON C.Country_ID = S.Country_ID
-        WHERE SQE.Code = 'ACBG19' AND SQA.Answer = 'More than eight weeks of instruction'
-        GROUP BY C.Name
-    ),
-    percentage_calc AS (
-        SELECT A.Name, schools_in_country_morethan8 / schools_in_country::float * 100 AS percentage
-        FROM schools_all A
-        JOIN schools_closed CL ON A.Name = CL.Name
-    )
-    SELECT *
-    FROM percentage_calc
-    WHERE percentage = 100;
-    '''
-    Here's a breakdown of the query's components:
-    
-    The percentage_calc Common Table Expression (CTE) calculates the percentage of schools in each country that were closed for more than eight weeks. It does this by dividing the count of distinct schools that answered "More than eight weeks of instruction" (schools_in_country_morethan8) by the total count of schools in the country (schools_in_country). This result is then multiplied by 100 to convert it into a percentage format. The calculation involves a join between two previously defined CTEs: schools_all and schools_closed. The join is made on the country name (A.Name = CL.Name), ensuring that the calculation is done per country.
-    
-    The final SELECT statement retrieves all records from the percentage_calc CTE where the calculated percentage equals 100. This effectively filters the results to only include countries where 100% of the schools were reported to be closed for more than eight weeks, answering the question: "Which country had all schools closed for more than eight weeks?"
-    
-    3) A simple query that answers the question 'What percentage of students in Egypt reached the Low International Benchmark?' can look like this:
+    2) A simple query that answers the question 'What percentage of students in Egypt reached the Low International Benchmark?' can look like this:
     '''
     WITH benchmark_score AS (
         SELECT Score FROM Benchmarks
@@ -230,5 +197,16 @@ data_engineer:
     JOIN StudentScoreResults AS SSR ON SSR.Student_ID = S.Student_ID
     CROSS JOIN benchmark_score AS bs
     WHERE C.Name = 'Egypt' AND SSR.Code = 'ASRREA_avg'
+    '''
+    
+    3) A simple query that answers the question 'Which country had an average reading score between 549 and 550 for its students?' can look like this:
+    '''
+    SELECT C.Name AS Country
+    FROM Students as S
+    JOIN Countries as C ON S.Country_ID = C.Country_ID
+    JOIN StudentScoreResults SSR ON S.Student_ID = SSR.Student_ID
+    WHERE SSR.Code = 'ASRREA_avg'
+    GROUP BY C.Name
+    HAVING AVG(ssr.Score) BETWEEN 549 AND 550;
     '''
     
