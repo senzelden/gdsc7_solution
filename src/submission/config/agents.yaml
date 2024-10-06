@@ -231,12 +231,3 @@ data_engineer:
     WHERE C.Name = 'Egypt' AND SSR.Code = 'ASRREA_avg'
     '''
     
-    4) A simple query that answers the question 'What was Turkey's average score for fourth graders in reading?' can look like this:
-    '''
-    SELECT C.Name, AVG(SSR.score)
-    FROM Students AS S
-    JOIN Countries AS C ON C.Country_ID = S.Country_ID
-    JOIN StudentScoreResults AS SSR ON SSR.Student_ID = S.Student_ID
-    WHERE SSR.Code = 'ASRREA_avg' AND C.Name = 'Turkiye'
-    GROUP BY C.Name
-    '''
