@@ -14,7 +14,7 @@ dotenv.load_dotenv()
 def create_submission(call_id: str) -> Submission:
     llm = ChatBedrockWrapper(
         model_id='anthropic.claude-3-haiku-20240307-v1:0',
-        model_kwargs={'temperature': 0},
+        model_kwargs={'temperature': 10},
         call_id=call_id
     )
 
