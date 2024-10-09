@@ -11,8 +11,8 @@ import src.submission.tools.web_crawl as web_tools
 class DevPIRLSCrew:
     """Data Analysis Crew for the GDSC project."""
     # Load the files from the config directory
-    agents_config = PROJECT_ROOT / 'agents_dev.yaml'
-    tasks_config = PROJECT_ROOT / 'tasks_dev.yaml'
+    agents_config = PROJECT_ROOT / 'submission' / 'config' / 'agents_dev.yaml'
+    tasks_config = PROJECT_ROOT / 'submission' / 'config' / 'tasks_dev.yaml'
 
     def __init__(self, llm):
         self.llm = llm
