@@ -12,6 +12,7 @@ answer_question_task:
     - Prioritize specific findings from the data engineer in the final output including numbers and percentages
     - Data and numbers should be provided in tables to increase readability.
     - Use markdown format for your final answer.
+    - Your answer should need exceed 4 paragraphs. Keep it concise!
     
   expected_output: >
     A clear and concise answer to the question with additional context on correlations and causations with a focus on numbers from the dataset
