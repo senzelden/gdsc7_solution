@@ -6,13 +6,44 @@ answer_question_task:
     When applicable, search for relevant data in the PIRLS 2021 dataset.
     
     When answering, always:    
-    - Do not comment on topics outside the area of your expertise.     
+    - Do not initiate research for topics outside the area of your expertise.     
+    - Ensure that your dataset queries are accurate and relevant to the research questions.
+    - Unless instructed otherwise, explain how you come to your conclusions and provide evidence to support your claims with specific data.
+    - Prioritize specific findings including numbers and percentages in line with best practices in statistics
+    - Data and numbers should be provided in tables to increase readability.
+    - Try to go the extra mile for open questions (e.g. correlate data with socioeconomic status, compare across countries within a region, integrate suggestions that you have into your query)
+    
+  expected_output: >
+    A complete answer to the question with additional context on correlations and causations
+    
+find_relevant_links_task:
+  description: >
+    Answer the following question:    
+    {user_question}
+    
+    When applicable, search for relevant data on the PIRLS 2021 website.
+  expected_output: >
+    A list of relevant links that can be used for further research.
+    
+analyze_findings_task:
+  description: >
+    Answer the following question:    
+    {user_question}
+    
+    When answering, always (unless forbidden by the user question):    
+    - Do not reply to topics outside the area of your expertise.     
     - Ensure that your analysis is accurate and relevant to the research questions.
+    - scrape the PIRLS website for data that is not available in the dataset (e.g. trend data) to find an answer.
     - Unless instructed otherwise, explain how you come to your conclusions and provide evidence to support your claims with specific data.
     - Prioritize specific findings from the data engineer in the final output including numbers and percentages
     - Data and numbers should be provided in tables to increase readability.
     - Use markdown format for your final answer.
-    - Your answer should need exceed 4 paragraphs. Keep it concise!
-    
+    - always summarize the findings first in a short TL;DR in the style of brutal simplicity (like a headline in a tabloid)
+    - finish with a sections on further links
+    - highlight the most important word or word group in each sentence by setting them to a bold font (e.g. **important**)
+    - use capital letters for headlines but no heading font
+    - make use of tables to easily summarize the data
+    - use horizontal rules to separate paragraphs
+    - Your answer should not exceed 3 paragraphs. Keep it concise!
   expected_output: >
-    A clear and concise answer to the question with additional context on correlations and causations with a focus on numbers from the dataset
+    A clear, concise and playful answer to the question with additional context on correlations and causations

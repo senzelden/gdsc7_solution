@@ -8,11 +8,11 @@ import src.submission.tools.web_crawl as web_tools
 
 
 @CrewBase
-class DevPIRLSCrew(Submission):
-    """Larger Crew for the GDSC project."""
+class DevPIRLSCrew:
+    """Data Analysis Crew for the GDSC project."""
     # Load the files from the config directory
-    agents_config = PROJECT_ROOT / 'submission' / 'config' / 'agents_dev.yaml'
-    tasks_config = PROJECT_ROOT / 'submission' / 'config' / 'tasks_dev.yaml'
+    agents_config = PROJECT_ROOT / 'agents_dev.yaml'
+    tasks_config = PROJECT_ROOT / 'tasks_dev.yaml'
 
     def __init__(self, llm):
         self.llm = llm
@@ -25,8 +25,11 @@ class DevPIRLSCrew(Submission):
         a = Agent(
             config=self.agents_config['lead_data_analyst'],
             llm=self.llm,
-            allow_delegation=True,
-            verbose=True
+            allow_delegation=False,
+            verbose=True,
+            tools=[
+                web_tools.scrape_paragraph_text
+            ]
         )
         return a
 
@@ -44,41 +47,26 @@ class DevPIRLSCrew(Submission):
             ]
         )
         return a
-    
-    @agent
-    def web_researcher(self) -> Agent:
-        a = Agent(
-            config=self.agents_config['web_researcher'],
-            llm=self.llm,
-            allow_delegation=False,
-            verbose=True,
-            tools=[
-                web_tools.find_relevant_links
-            ]
-        )
-        return a
-    
-    # @agent
-    # def report_compiler(self) -> Agent:
-    #     a = Agent(
-    #         config=self.agents_config['report_compiler'],
-    #         llm=self.llm,
-    #         allow_delegation=False,
-    #         verbose=True
-    #     )
-    #     return a
 
     @task
     def answer_question_task(self) -> Task:
         t = Task(
             config=self.tasks_config['answer_question_task'],
+            agent=self.data_engineer()
+        )
+        return t
+    
+    @task
+    def analyze_findings_task(self) -> Task:
+        t = Task(
+            config=self.tasks_config['analyze_findings_task'],
             agent=self.lead_data_analyst()
         )
         return t
 
     @crew
     def crew(self) -> Crew:
-        """Creates the crew"""
+        """Creates the data analyst crew"""
         return Crew(
             agents=self.agents,
             tasks=self.tasks,
