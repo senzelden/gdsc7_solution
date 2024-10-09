@@ -2,7 +2,8 @@ from langchain_core.tools import tool
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from pdfminer.high_level import extract_text as extract_text_from_pdf
+import pypdf
+from io import BytesIO
 
 @tool
 def find_relevant_links(url: str, query: str) -> list:
@@ -21,6 +22,14 @@ def find_relevant_links(url: str, query: str) -> list:
     def extract_text(soup: BeautifulSoup) -> str:
         text_elements = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'])
         text = ' '.join(element.get_text() for element in text_elements)
+        return text
+
+    def extract_text_from_pdf(pdf_url: str) -> str:
+        response = requests.get(pdf_url)
+        pdf_reader = pypdf.PdfReader(BytesIO(response.content))
+        text = ''
+        for page in pdf_reader.pages:
+            text += page.extract_text()
         return text
 
     def find_relevant_subpages(text: str, link: str) -> None:
