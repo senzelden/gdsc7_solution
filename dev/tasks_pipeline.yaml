@@ -1,0 +1,125 @@
+answer_question_task:
+  description: >
+    Provide data for the following question:    
+    {user_question}
+    
+    When applicable, search for relevant data in the PIRLS 2021 dataset.
+    
+    When answering, always:    
+    - Do not initiate research for topics outside the area of your expertise.     
+    - Ensure that your dataset queries are accurate and relevant to the research questions.
+    - Unless instructed otherwise, explain how you come to your conclusions and provide evidence to support your claims with specific data.
+    - Prioritize specific findings including numbers and percentages in line with best practices in statistics
+    - Data and numbers should be provided in tables to increase readability.
+    - Try to go the extra mile for open questions (e.g. correlate data with socioeconomic status, compare across countries within a region, integrate suggestions that you have into your query)
+    
+  expected_output: >
+    A concise summary of the findings in JSON
+
+visualization_task:
+  description: >
+    Create a visual representation of the data related to the most important research finding:
+    
+    The visualization should aim to provide clear insights into the dataset, making complex patterns, trends, or comparisons easy to understand.
+    
+    When creating the visualization, always:
+    - Ensure the visual aligns with the overall research narrative and conclusions.
+    - Choose the most appropriate chart type (e.g., bar chart, line graph, heat map) for the data presented.
+    - Use clear labels, titles, and legends to make the visualization self-explanatory.
+    - Simplify the design to avoid overwhelming the viewer with unnecessary details.
+    
+  expected_output: >
+    The output should be a link to the visualization.
+
+classification_task:
+  description: >
+    Classify the following question as closed (1-2), open (3-5) or out of scope (6) on a scale of 1 to 6:    
+    {user_question}
+    
+    When applicable, search for relevant data in the PIRLS 2021 dataset.
+    
+    When answering, always:    
+    - Do not initiate research for topics outside the area of your expertise.     
+    - ONLY provide the classification as a number in your output
+    
+  expected_output: >
+    The question_type parameter for user_question is set between 1 and 6
+    
+understand_question_context:
+  description: >
+    Understand the context of the following question:    
+    {user_question}
+    
+    Interpret user queries accurately by understanding the context and nuances of the question in relation to PIRLS 2021.
+    Clarify ambiguous queries by asking follow-up questions to narrow down the user’s intent in relation to PIRLS 2021.
+    Do not reply to topics outside the area of your expertise.
+  expected_output: >
+    A general classification of the user question (e.g. closed or open). A concise and specific set of scientific questions that are derived from the user question. The length is dependent on the question type (closed: 1-2 questions, open: 3-5). The output is to be provided in short bullet points.
+
+find_relevant_links_task:
+  description: >
+    Answer the following question:    
+    {user_question}
+    
+    When applicable, search for relevant data on the PIRLS 2021 website.
+  expected_output: >
+    A list of relevant links that can be used for further research.
+    
+additional_research_task:
+  description: >
+    Answer the following question:    
+    {user_question}
+    
+    When answering, always (unless forbidden by the user question):    
+    - Do not reply to topics outside the area of your expertise.     
+    - Ensure that your analysis is accurate and relevant to the research questions.
+    - scrape the PIRLS website for data that is not available in the dataset (e.g. trend data) to find an answer.
+    - Unless instructed otherwise, explain how you come to your conclusions and provide evidence to support your claims with specific data.
+    - Data and numbers should be provided in tables to increase readability.
+    - Use markdown format for your final answer.
+  expected_output: >
+    A clear, concise and playful answer to the question with additional context on correlations and causations
+    
+statistics_research_task:
+  description: >
+    Answer the following question:    
+    {user_question}
+    
+    When answering, always (unless forbidden by the user question):    
+    - Do not reply to topics outside the area of your expertise.     
+    - Ensure that your analysis is accurate and relevant to the research questions.
+    - go through the provided csv files for data that is not available in the dataset (e.g. trend data) to find an answer.
+    - Unless instructed otherwise, explain how you come to your conclusions and provide evidence to support your claims with specific data.
+    - Data and numbers should be provided in tables to increase readability.
+    - Use markdown format for your final answer.
+  expected_output: >
+    A clear, concise and playful answer to the question with additional context on correlations and causations
+    
+writing_task:
+  description: >
+    Summarize the findings from previous crews.
+    You receive data in JSON format.
+    
+    ALWAYS rely on the output from the main_research_crew.
+    NEVER add additional findings.
+    
+    When answering, always (unless forbidden by the user question):    
+    - Do not reply to topics outside the area of your expertise.     
+    - Ensure that your analysis is accurate and relevant to the research questions.
+    - Unless instructed otherwise, explain how you come to your conclusions and provide evidence to support your claims with specific data.
+    - Prioritize specific findings from the data engineer in the final output including numbers and percentages
+    - Data and numbers should be provided in tables to increase readability.
+    - Use markdown format for your final answer.
+    - always summarize the findings first in a short TL;DR in the style of brutal simplicity (like a headline in a tabloid)
+    - finish with a sections on further links
+    - highlight the most important word or word group in each sentence by setting them to a bold font (e.g. **important**)
+    - use capital letters for headlines but no heading font
+    - make use of tables to easily summarize the data
+    - use horizontal rules to separate paragraphs
+    - Your answer should have 1-2 paragraphs for closed questions and 3-5 paragraphs for open questions. Keep it concise!
+    - Questions out of scope should be answered in a playful manner with a reference to texts used for PIRLS 2021
+    
+  
+  expected_output: >
+    A clear, concise and playful answer to the question with additional context on correlations and causations
+    

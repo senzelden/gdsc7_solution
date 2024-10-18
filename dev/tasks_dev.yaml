@@ -1,6 +1,6 @@
 answer_question_task:
   description: >
-    Answer the following question:    
+    Answer the following question as specified by the domain expert:    
     {user_question}
     
     When applicable, search for relevant data in the PIRLS 2021 dataset.
@@ -14,8 +14,19 @@ answer_question_task:
     - Try to go the extra mile for open questions (e.g. correlate data with socioeconomic status, compare across countries within a region, integrate suggestions that you have into your query)
     
   expected_output: >
-    A complete answer to the question with additional context on correlations and causations
+    A complete answer to the scientific questions from the domain expert with additional context on correlations and causations
+
+understand_question_context:
+  description: >
+    Understand the context of the following question:    
+    {user_question}
     
+    Interpret user queries accurately by understanding the context and nuances of the question in relation to PIRLS 2021.
+    Clarify ambiguous queries by asking follow-up questions to narrow down the user’s intent in relation to PIRLS 2021.
+    Do not reply to topics outside the area of your expertise.
+  expected_output: >
+    A general classification of the user question (e.g. closed or open). A concise and specific set of scientific questions that are derived from the user question. The length is dependent on the question type (closed: 1-2 questions, open: 3-5). The output is to be provided in short bullet points.
+
 find_relevant_links_task:
   description: >
     Answer the following question:    
@@ -24,7 +35,22 @@ find_relevant_links_task:
     When applicable, search for relevant data on the PIRLS 2021 website.
   expected_output: >
     A list of relevant links that can be used for further research.
+
+visualization_task:
+  description: >
+    Create a visual representation of the data related to the most important research finding:
     
+    The visualization should aim to provide clear insights into the dataset, making complex patterns, trends, or comparisons easy to understand.
+    
+    When creating the visualization, always:
+    - Ensure the visual aligns with the overall research narrative and conclusions.
+    - Choose the most appropriate chart type (e.g., bar chart, line graph, heat map) for the data presented.
+    - Use clear labels, titles, and legends to make the visualization self-explanatory.
+    - Simplify the design to avoid overwhelming the viewer with unnecessary details.
+    
+  expected_output: >
+    The output should be a link to the visualization.
+
 analyze_findings_task:
   description: >
     Answer the following question:    
