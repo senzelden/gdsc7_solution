@@ -1,20 +1,14 @@
-import dotenv
-
-from src.static.ChatBedrockWrapper import ChatBedrockWrapper
-from src.static.submission import Submission
 from langgraph.graph import StateGraph, END
 from typing import TypedDict, Annotated
 import operator
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, ToolMessage
 from langgraph.prebuilt import ToolNode
 
-import src.submission.tools.tools.csv_handling as csv_tools
-import src.submission.tools.tools.database as db_tools
-import src.submission.tools.tools.web_crawl as web_tools
-import src.submission.tools.tools.data_viz as viz_tools
-from src.submission.crews.dev_PIRLS_crew import DevPIRLSCrew
+import tools.csv_handling as csv_tools
+import tools.database as db_tools
+import tools.web_crawl as web_tools
+import tools.data_viz as viz_tools
 
-dotenv.load_dotenv()
 
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], operator.add]
@@ -74,7 +68,7 @@ class SQLAgent:
             results.append(ToolMessage(tool_call_id=t['id'], name=t['name'], content=str(result)))
         print("Back to the model!")
         return {'messages': results}
-
+    
 prompt = """
         ------------ GENERAL ------------
         When applicable, search for relevant data in the PIRLS 2021 dataset.
@@ -402,21 +396,21 @@ prompt = """
             READ.PRIMARY.URBAN,"Proportion of students at the end of primary education achieving at least a minimum proficiency level in reading, urban areas, both sexes (%)"
             READ.PRIMARY.WPIA,"Proportion of students at the end of primary education achieving at least a minimum proficiency level in reading, adjusted wealth parity index (WPIA)"
             
-        ------------ CSV HANDLING ------------
-
-        ### Trend data by country
-        Trend data by country is stored as a csv under "src/submission/trend_data/pirls_trends.csv". It uses ";" as a separator.
-
-        ------------ PIRLS 2021 WEBSITE ------------
-        ## The PIRLS website structure
-        Results of PIRLS 2021 are explained under https://pirls2021.org/results and it's subpages.
-        Data on policies from individual countries and additional context can be found under https://pirls2021.org/encyclopedia/ and it's subpages.
-        Individual reports in PDF format can be found under https://pirls2021.org/insights/ and it's subpages.
-        Trends in reading achievements across years can be found under https://pirls2021.org/results/trends/overall.
-        https://pirls2021.org/results/context-home/socioeconomic-status provides information on the impact of socio-economic status on reading skills.
-        https://pirls2021.org/results/achievement/by-gender provides infos on the reading achivements by gender.
-        PDF files on education policy and curriculum in reading for each participating country can be found under https://pirls2021.org/ + the respective country name, e.g.
-
+            ------------ CSV HANDLING ------------
+            
+            ### Trend data by country
+            Trend data by country is stored as a csv under "trend_data/pirls_trends.csv". It uses ";" as a separator.
+            
+            ------------ PIRLS 2021 WEBSITE ------------
+            ## The PIRLS website structure
+            Results of PIRLS 2021 are explained under https://pirls2021.org/results and it's subpages.
+            Data on policies from individual countries and additional context can be found under https://pirls2021.org/encyclopedia/ and it's subpages.
+            Individual reports in PDF format can be found under https://pirls2021.org/insights/ and it's subpages.
+            Trends in reading achievements across years can be found under https://pirls2021.org/results/trends/overall.
+            https://pirls2021.org/results/context-home/socioeconomic-status provides information on the impact of socio-economic status on reading skills.
+            https://pirls2021.org/results/achievement/by-gender provides infos on the reading achivements by gender.
+            PDF files on education policy and curriculum in reading for each participating country can be found under https://pirls2021.org/ + the respective country name, e.g.
+            
         ------------ FINAL OUTPUT ------------
 
         ## Final report output design
@@ -479,17 +473,6 @@ prompt = """
         technology managers collaborate with everyone on data accessibility, protection & security.
         """
 
-# This function is used to run evaluation of your model.
-# You MUST NOT change the signature of this function! The name of the function, name of the arguments,
-# number of the arguments and the returned type mustn't be changed.
-# You can modify only the body of this function so that it returned your implementation of the Submission class.
-def create_submission(call_id: str) -> Submission:
-    llm = ChatBedrockWrapper(
-        model_id='anthropic.claude-3-5-sonnet-20240620-v1:0',
-        model_kwargs={'temperature': 0},
-        call_id=call_id
-    )
-
-    doc_agent = SQLAgent(model=llm, tools=tools, system_prompt=prompt)
-    return doc_agent
-    # raise NotImplementedError('create_submission is not yet implemented.')
+# model = ChatOpenAI(model="llama3", api_key = 'ollama', base_url='http://localhost:11434/v1/')
+model = llm
+doc_agent = SQLAgent(model, tools, system_prompt=prompt)
