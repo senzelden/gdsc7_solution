@@ -76,7 +76,14 @@ class SQLAgent:
         return {'messages': results}
     
     def run(self, initial_messages):
-        return self.graph.invoke({"messages": [HumanMessage(content=initial_messages)]})
+        # Execute the graph and get the final state
+        final_state = self.graph.invoke({"messages": [HumanMessage(content=initial_messages)]})
+
+        # Extract the content of the last message
+        final_message_content = final_state['messages'][-1].content
+
+        # Return only the content of the last message
+        return final_message_content
 
 
 prompt = """
@@ -429,7 +436,7 @@ prompt = """
         Data from the database always has priority, but should be accompanied by findings from other sources if possible.
         Ensure that your results follow best practices in statistics (e.g. check for relevancy, percentiles).
         In your final output address the user and it's user question.
-        Questions out of scope should be answered with a short description of PIRLS 2021 and a reference to the PIRLS website.
+        Questions out of scope should be answered with a short description of PIRLS 2021 and a link to the PIRLS website by using a footnote.
         ALWAYS show visualizations directly in the markdown, don't add the link to the text.
 
         You should always consider that
