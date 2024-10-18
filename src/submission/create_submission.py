@@ -74,6 +74,10 @@ class SQLAgent:
             results.append(ToolMessage(tool_call_id=t['id'], name=t['name'], content=str(result)))
         print("Back to the model!")
         return {'messages': results}
+    
+    def run(self, initial_messages):
+        return self.graph.invoke({"messages": initial_messages})
+
 
 prompt = """
         ------------ GENERAL ------------
