@@ -8,10 +8,10 @@ import operator
 from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, ToolMessage
 from langgraph.prebuilt import ToolNode
 
-import src.submission.tools.tools.csv_handling as csv_tools
-import src.submission.tools.tools.database as db_tools
-import src.submission.tools.tools.web_crawl as web_tools
-import src.submission.tools.tools.data_viz as viz_tools
+import src.submission.tools.csv_handling as csv_tools
+import src.submission.tools.database as db_tools
+import src.submission.tools.web_crawl as web_tools
+import src.submission.tools.data_viz as viz_tools
 from src.submission.crews.dev_PIRLS_crew import DevPIRLSCrew
 
 dotenv.load_dotenv()
