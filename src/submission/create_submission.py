@@ -76,7 +76,7 @@ class SQLAgent:
         return {'messages': results}
     
     def run(self, initial_messages):
-        return self.graph.invoke({"messages": initial_messages})
+        return self.graph.invoke({"messages": [HumanMessage(content=initial_messages)]})
 
 
 prompt = """
@@ -429,6 +429,7 @@ prompt = """
         Data from the database always has priority, but should be accompanied by findings from other sources if possible.
         Ensure that your results follow best practices in statistics (e.g. check for relevancy, percentiles).
         In your final output address the user and it's user question.
+        Questions out of scope should be answered with a short description of PIRLS 2021 and a reference to the PIRLS website.
         ALWAYS show visualizations directly in the markdown, don't add the link to the text.
 
         You should always consider that
@@ -490,7 +491,7 @@ prompt = """
 def create_submission(call_id: str) -> Submission:
     llm = ChatBedrockWrapper(
         model_id='anthropic.claude-3-5-sonnet-20240620-v1:0',
-        model_kwargs={'temperature': 0},
+        model_kwargs={'temperature': 0, "max_tokens": 8192},
         call_id=call_id
     )
 
