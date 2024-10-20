@@ -43,6 +43,41 @@ def crawl_subpages(url: str) -> list:
 
 
 @tool
+def scrape_text(url: str, target_elements: list = ['p'], **attributes) -> dict:
+    """
+    Scrapes text from the specified target elements on a webpage.
+
+    Args:
+        url (str): The URL of the website to scrape.
+        target_elements (list): A list of HTML tags to target (default is ['p']).
+        **attributes: Additional attributes to filter elements (e.g., class_="highlight", id="main").
+
+    Returns:
+        dict: A dictionary where the keys are target elements and the values are lists of text content.
+    """
+    result = {}
+
+    # Send HTTP request
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
+
+    # Iterate over each target element type
+    for target_element in target_elements:
+        texts = []
+
+        # Find all elements that match the target tag and attributes
+        for element in soup.find_all(target_element, **attributes):
+            text = element.get_text()
+            if '.' in text:  # Optional filtering for text with periods
+                texts.append(text)
+        
+        # Store the result for each target element
+        result[target_element] = texts[:7]  # Return only the first 8 texts for brevity
+
+    return result
+
+
+@tool
 def scrape_paragraph_text(url: str) -> list:
     """
     Scrapes text from all <p> elements on a webpage.
