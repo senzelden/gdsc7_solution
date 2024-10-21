@@ -1,5 +1,7 @@
 from langchain_core.tools import tool
 import pandas as pd
+import requests
+from io import BytesIO
 
 
 @tool
@@ -33,30 +35,29 @@ def csv_to_json_string(file_path: str, sep: str = ";") -> str:
 
     
 @tool
-def process_excel_to_json(file_name: str) -> str:
-    """Read all sheets from an Excel file, combine them into a single DataFrame, 
-    and return the result as a JSON string.
+def process_first_sheet_to_json_from_url(url: str) -> str:
+    """Download an Excel file from the internet, read the first sheet, and return the result as a JSON string.
 
     Args:
-        file_name (str): The name of the Excel file to process.
+        url (str): The URL of the Excel file to process.
 
     Returns:
-        str: A JSON string with the combined data from all sheets.
+        str: A JSON string with the data from the first sheet.
     """
     try:
-        # Load the Excel file and get sheet names
-        xls = pd.ExcelFile(file_name)
-        sheet_names = xls.sheet_names
+        # Download the Excel file from the URL
+        response = requests.get(url)
+        response.raise_for_status()  # Check for download errors
         
-        # Read all sheets into a dictionary of DataFrames
-        dfs = pd.read_excel(file_name, sheet_name=sheet_names)
+        # Load the Excel file from the downloaded content
+        xls = pd.ExcelFile(BytesIO(response.content))
         
-        # Concatenate all DataFrames into one
-        combined_df = pd.concat(dfs, ignore_index=True)
+        # Read only the first sheet into a DataFrame
+        first_sheet_df = pd.read_excel(xls, sheet_name=xls.sheet_names[0])
         
         # Convert to JSON with NaN values replaced by empty strings
-        json_result = combined_df.fillna('').to_json(orient="values")
+        json_result = first_sheet_df.fillna('').to_json(orient="values")
         
         return json_result
     except Exception as e:
-        return f"Error processing file '{file_name}': {e}"
+        return f"Error processing file from URL '{url}': {e}"
