@@ -1,4 +1,5 @@
 langgraph
+sentence-transformers==2.3.0
 setuptools==70.0.0
 uvicorn==0.30.1
 fastapi==0.110.3
@@ -13,6 +14,5 @@ durationpy==0.6
 async-timeout
 psycopg2-binary==2.9.9
 anthropic
-sentence_transformers
 openpyxl
 seaborn
