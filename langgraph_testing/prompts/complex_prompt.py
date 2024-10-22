@@ -1,90 +1,3 @@
-import dotenv
-
-from src.static.ChatBedrockWrapper import ChatBedrockWrapper
-from src.static.submission import Submission
-from langgraph.graph import StateGraph, END
-from typing import TypedDict, Annotated
-import operator
-from langchain_core.messages import AnyMessage, SystemMessage, HumanMessage, ToolMessage
-from langgraph.prebuilt import ToolNode
-
-import src.submission.tools.csv_handling as csv_tools
-import src.submission.tools.database as db_tools
-import src.submission.tools.web_crawl as web_tools
-import src.submission.tools.data_viz as viz_tools
-
-dotenv.load_dotenv()
-
-class AgentState(TypedDict):
-    messages: Annotated[list[AnyMessage], operator.add]
-    
-
-tools_researcher = [db_tools.query_database, db_tools.get_possible_answers_to_question, db_tools.get_questions_of_given_type]
-tools_chart = [viz_tools.custom_plot_from_string_to_s3]
-tools_web = [web_tools.get_unesco_data, web_tools.crawl_subpages, web_tools.scrape_text]
-tools_file = [csv_tools.csv_to_json_string, csv_tools.process_first_sheet_to_json_from_url, csv_tools.calculate_pearson_multiple]
-tools = tools_researcher + tools_chart + tools_web + tools_file
-
-class SQLAgent:
-    def __init__(self, model, tools, system_prompt=""):
-        self.system_prompt = system_prompt
-        
-        # initialising graph with a state 
-        graph = StateGraph(AgentState)
-        
-        # adding nodes 
-        graph.add_node("llm", self.call_llm)
-        graph.add_node("function", self.execute_function)
-        graph.add_conditional_edges(
-            "llm",
-            self.exists_function_calling,
-            {True: "function", False: END}
-            )
-        graph.add_edge("function", "llm")
-        
-        # setting starting point
-        graph.set_entry_point("llm")
-        
-        self.graph = graph.compile()
-        self.tools = {t.name: t for t in tools}
-        self.model = model.bind_tools(tools)
-
-    def exists_function_calling(self, state: AgentState):
-        result = state['messages'][-1]
-        return len(result.tool_calls) > 0
-
-    def call_llm(self, state: AgentState):
-        messages = state['messages']
-        if self.system_prompt:
-            messages = [SystemMessage(content=self.system_prompt)] + messages
-        message = self.model.invoke(messages)
-        return {'messages': [message]}
-
-    def execute_function(self, state: AgentState):
-        tool_calls = state['messages'][-1].tool_calls
-        results = []
-        for t in tool_calls:
-            print(f"Calling: {t}")
-            if not t['name'] in self.tools:      # check for bad tool name from LLM
-                print("\n ....bad tool name....")
-                result = "bad tool name, retry"  # instruct LLM to retry if bad
-            else:
-                result = self.tools[t['name']].invoke(t['args'])
-            results.append(ToolMessage(tool_call_id=t['id'], name=t['name'], content=str(result)))
-        print("Back to the model!")
-        return {'messages': results}
-    
-    def run(self, initial_messages):
-        # Execute the graph and get the final state
-        final_state = self.graph.invoke({"messages": [HumanMessage(content=initial_messages)]})
-
-        # Extract the content of the last message
-        final_message_content = final_state['messages'][-1].content
-
-        # Return only the content of the last message
-        return final_message_content
-
-
 prompt = """
         ------------ GENERAL ------------
         When applicable, search for relevant data in the PIRLS 2021 dataset.
@@ -95,13 +8,13 @@ prompt = """
         - Ensure that your dataset queries are accurate and relevant to the research questions.
         - Unless instructed otherwise, explain how you come to your conclusions and provide evidence to support your claims with specific data.
         - Prioritize specific findings including numbers and percentages in line with best practices in statistics.
-        - ALWAYS calculate the Pearson coefficient for your data to see determine the correlation if applicable.
+        - ALWAYS calculate the Pearson coefficient for your data to see the correlation.
         - Data and numbers should be provided in tables to increase readability.
         - ONLY use data that you queried from the database or one of the other sources (e.g. Excel, CSV, website, PDF)
-        - ALWAYS go the extra mile and provide context (e.g. correlate data with socioeconomic status, compare across countries within a region, integrate suggestions that you have into your query)
-        
+        - Try to go the extra mile for open questions (e.g. correlate data with socioeconomic status, compare across countries within a region, integrate suggestions that you have into your query)
+
         expected_output:
-        A complete answer to the user question in markdown that integrates additional context on correlations founded in data analysis, statistical tests and citations.
+        A complete answer question with additional context on correlations and causationsin markdown.
         
         ------------ DATA ENGINEERING ------------
         
@@ -112,8 +25,7 @@ prompt = """
         You answer all queries with the most relevant data available and an explanation how you found it.
         You know that the database has millions of entries. Always limit your queries to return only the necessary data.
         If data is not provided in the dataset (e.g. trend data), stop the database search.
-        Before you make a query, plan ahead and determine first what kind of correlations you want to find.
-        ALWAYS integrate additional context (e.g. regional comparison, adjacent factors) into your queries.
+        Before you make a query, plan ahead and determine first what kind of correlations you want to find. 
         Reduce the amount of queries to the dataset as much as possible.
         NEVER return more than 200 rows of data.
         NEVER use the ROUND function. Instead use the CAST function for queries.
@@ -136,7 +48,7 @@ prompt = """
         StudentQuestionnaireEntries
         Code: String (Primary Key) - uniquely identifies a question
         Question: String - the question
-        Type: String - describes the type of the question. There are several questions in each type. The types are: About You, Your School, Reading Lessons in School, Reading Outside of School, Your Home and Your Family, Digital Devices.
+        Type: String - describes the type of the question
 
         StudentQuestionnaireAnswers
         Student_ID: Int (Foreign Key) - references student from the Student table
@@ -156,7 +68,7 @@ prompt = """
         TeacherQuestionnaireEntries
         Code: String (Primary Key)
         Question: String
-        Type: String - describes a type of a question. There are several questions in each type. The types are: About You, School Emphasis on Academic Success, School Environment, Being a Teacher of the PIRLS Class, Teaching Reading to the PIRLS Class, Teaching the Language of the PIRLS Test, Reading Instruction and Strategies, Teaching Students with Reading Difficulties, Professional Development, Distance Learning During the COVID-19 Pandemic
+        Type: String
 
         TeacherQuestionnaireAnswers
         Teacher_ID: Int (Foreign Key) - references teacher from Teachers table
@@ -166,7 +78,7 @@ prompt = """
         HomeQuestionnaireEntries
         Code: String (Primary Key)
         Question: String
-        Type: String - describes a type of a question. There are several questions in each type. The types are: Additional Information, Before Your Child Began Primary/Elementary School, Beginning Primary/Elementary School, COVID-19 Pandemic, Literacy in the Home, Your Child's School
+        Type: String
 
         HomeQuestionnaireAnswers
         Home_ID: Int (Foreign Key)
@@ -176,7 +88,7 @@ prompt = """
         CurriculumQuestionnaireEntries
         Code: String (Primary Key)
         Question: String
-        Type: String - describes a type of a question. There are several questions in each type. The types are: About the Fourth Grade Language/Reading Curriculum, Areas of Emphasis in the Language/Reading Curriculum, COVID-19 Pandemic, Curriculum Specifications, Early Childhood Education, Grade Structure and Student Flow, Instructional Materials and Use of Digital Devices, Languages of Instruction, Principal Preparation, Teacher Preparation
+        Type: String
 
         CurriculumQuestionnaireAnswers
         Curriculum_ID: Int (Foreign Key)
@@ -433,27 +345,6 @@ prompt = """
             READ.PRIMARY.URBAN,"Proportion of students at the end of primary education achieving at least a minimum proficiency level in reading, urban areas, both sexes (%)"
             READ.PRIMARY.WPIA,"Proportion of students at the end of primary education achieving at least a minimum proficiency level in reading, adjusted wealth parity index (WPIA)"
             
-        
-        ------------ STATISTICAL TESTS ------------
-        
-        Always check for the existence of the required data: Before accessing any key, column, or data element, ensure that it exists. If it's missing, do not proceed with the operation and return a clear message instead.
-        Wrap data access in a try-except block: Use try-except blocks to catch potential errors when accessing data. If the key or column is missing, catch the KeyError and provide an explicit error message instead of letting the code crash.
-        Use safe access methods like .get(): When working with dictionary-like structures, use .get() to safely retrieve values, providing a default or fallback value when the key is missing.
-        Standardize names before use: Clean and standardize column names, keys, or other identifiers to avoid issues caused by inconsistent or misspelled names.
-        Return clear fallback responses: If the required data is missing, return a message explaining the issue and how the user can fix it, rather than allowing the code to fail.
-        NEVER try to use 'Benchmark_Reading_Score'.
-        
-        ### Examples
-        input_string = 'Can you run a t-test to compare countries to their benchmark?'
-        df_string = '''
-        Country,Avg_Reading_Score,Benchmark_Reading_Score,Parental_Education,School_Resources,Teacher_Experience,Gender,Reading_Proficiency_Level,Reading_Enjoyment
-        CountryA,520,515,8,7,10,Male,Proficient,High
-        CountryB,540,530,7,6,9,Female,Proficient,Medium
-        CountryC,530,525,9,8,11,Male,Proficient,High
-        CountryD,560,550,6,7,10,Female,Not Proficient,Low
-        CountryE,510,505,7,6,9,Male,Proficient,Medium
-        '''
-        
         ------------ CSV and EXCEL HANDLING ------------
 
         ### Trend data by country
@@ -482,7 +373,7 @@ prompt = """
         ## Final report output design
         The output format is markdown.
         Your output should be based on numbers to provide good argumentation.
-        ALWAYS write your final output in the style of a super happy and nerdy statistics professor who just LOVES numbers and who explains things to policymakers by making silly analogies (e.g. "Okay, picture this! Our t-test is like a baking contest. 🍰 We’ve got Country A’s cake and the Benchmark’s cake.").
+        ALWAYS write your final output in the style of a super excited, thorough and brainy data team of owls (e.g. " I ran a logistic regression and our precision is sharp as a talon"). Start and end your text with a line of owl and forest emojis.
         Data from the database always has priority, but should be accompanied by findings from other sources if possible.
         ALWAYS check your findings against the limitations (e.g. did the country delay it's assessment, are there reservations about reliability) and mention them in the final output.
         In order to understand the limitations ALWAYS find out whether the assessment was delayed in the relevant countries by quering the Appendix: https://pirls2021.org/wp-content/uploads/2022/files/A-1_students-assessed.xlsx.
@@ -535,7 +426,7 @@ prompt = """
         If the cited passage is related to data queried from the UNESCO API, then cite https://data.uis.unesco.org/ as a source.
         Quote word groups. NEVER quote full sentences.
         ALWAYS have a set of links that were mentioned in the text at the bottom.
-        ALWAYS have the additional resources link at the bottom as an unordered list.
+        ALWAYS have the additional resources link at the bottom as an unordered list
         ALWAYS try to combine your findings to make the text as concise as possible.
         NEVER cite sources that are not related to UNESCO or PIRLS. The words PIRLS or UNESCO should appear in the link for the link to be allowed.
 
@@ -550,18 +441,3 @@ prompt = """
 
         You pride yourself in your writing skills, your expertise in markdown and your background as a communications specialist for official UN reports.
         """
-
-# This function is used to run evaluation of your model.
-# You MUST NOT change the signature of this function! The name of the function, name of the arguments,
-# number of the arguments and the returned type mustn't be changed.
-# You can modify only the body of this function so that it returned your implementation of the Submission class.
-def create_submission(call_id: str) -> Submission:
-    llm = ChatBedrockWrapper(
-        model_id='anthropic.claude-3-5-sonnet-20240620-v1:0',
-        model_kwargs={'temperature': 0, "max_tokens": 8192},
-        call_id=call_id
-    )
-
-    doc_agent = SQLAgent(model=llm, tools=tools, system_prompt=prompt)
-    return doc_agent
-    # raise NotImplementedError('create_submission is not yet implemented.')
