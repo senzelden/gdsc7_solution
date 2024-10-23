@@ -1,167 +1,159 @@
 from langchain_core.tools import tool
 import pandas as pd
 import numpy as np
-from scipy.stats import ttest_ind, f_oneway, chi2_contingency, pearsonr
-from sklearn.linear_model import LogisticRegression
+from scipy.stats import ttest_ind, pearsonr, f_oneway, chi2_contingency
 from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA, FactorAnalysis
+from sklearn.decomposition import PCA
 import statsmodels.api as sm
 from statsmodels.multivariate.manova import MANOVA
 from io import StringIO
 
 @tool
-def analyze_pirls_problem(input_string, df_string):
+def analyze_pirls_data(input_string, df_string):
     """
-    Function to analyze PIRLS-related problems based on an input string and DataFrame provided as a string.
+    Function to analyze PIRLS-related problems using statistical methods based on the input string.
     
-    This function performs different types of statistical analysis depending on the problem description
-    provided in the input string. It supports the following statistical methods:
+    This function dynamically extracts column names from the input_string and performs the specified
+    statistical test using a provided DataFrame in CSV string format. The input_string should contain 
+    both the type of analysis and the columns involved.
     
-    - T-test: Compare the mean reading scores of countries to their benchmark.
-    - Correlation: Calculate the correlation between two variables (e.g., reading scores and benchmarks).
-    - ANOVA: Compare the mean reading scores across multiple countries.
-    - Linear Regression: Model the relationship between reading scores and multiple independent variables.
-    - Chi-Square Test: Assess the relationship between two categorical variables.
-    - Logistic Regression: Predict the likelihood of achieving proficiency based on multiple factors.
-    - K-Means Clustering: Group countries or students into clusters based on similar characteristics.
-    - Principal Component Analysis (PCA): Reduce data dimensionality by summarizing variables.
-    - MANOVA: Test the effect of independent variables on multiple dependent variables.
-    
+    Supported statistical analyses include:
+    - T-test: "t-test on ColA and ColB"
+    - Correlation: "correlation between ColX and ColY"
+    - ANOVA: "anova on ColA by ColB"
+    - Linear Regression: "linear regression using Col1, Col2, ..., ColN"
+    - Chi-Square Test: "chi-square between ColA and ColB"
+    - Logistic Regression: "logistic regression using Col1, Col2, ..., ColN"
+    - K-Means Clustering: "clustering using Col1, Col2, ..., ColN"
+    - Principal Component Analysis (PCA): "pca using Col1, Col2, ..., ColN"
+    - MANOVA: "manova using Col1, Col2, ..., ColN for ColX, ColY"
+
     Parameters:
-    - input_string (str): A description of the problem, which determines the type of statistical analysis to perform.
-      It can include keywords like 't-test', 'correlation', 'anova', 'linear regression', 'chi-square', 'logistic regression', 
-      'clustering', 'pca', or 'manova' to trigger specific analyses.
-    - df_string (str): A string representation of a CSV-like dataset, which is converted into a pandas DataFrame 
-      for statistical analysis.
-    
+    - input_string (str): A description of the analysis type and columns to use (e.g., "t-test on ColA and ColB").
+    - df_string (str): A CSV-formatted string representing the data to be analyzed, which will be converted into a pandas DataFrame.
+
     Returns:
-    - str: A summary or result of the statistical analysis, formatted as text, including the column names used in the analysis.
+    - str: A summary of the statistical analysis, including results and column names used, or an error message if columns are missing or the analysis type is invalid.
     """
     
-    # Convert the provided string into a pandas DataFrame
+    # Convert the CSV string into a pandas DataFrame
     try:
         df = pd.read_csv(StringIO(df_string))
     except Exception as e:
-        return f"Error parsing dataframe string: {e}"
+        return f"Error parsing DataFrame from string: {e}"
     
-    # Helper function to check for required columns
-    def check_columns(required_columns):
-        missing_columns = [col for col in required_columns if col not in df.columns]
+    # Helper function to check if required columns exist in the DataFrame
+    def check_columns(cols):
+        missing_columns = [col for col in cols if col not in df.columns]
         if missing_columns:
-            return f"Error: Missing required columns: {', '.join(missing_columns)}"
+            raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
+    
+    # Helper function to extract columns from the input_string
+    def extract_columns(pattern):
+        import re
+        columns = re.findall(r'on (\w+) and (\w+)', pattern)
+        if columns:
+            return columns[0]  # Returns a tuple (col1, col2)
         return None
     
-    # Subfunction for t-test analysis
-    def run_ttest_analysis(df):
-        required_columns = ['Avg_Reading_Score', 'Benchmark_Reading_Score']
-        error_message = check_columns(required_columns)
-        if error_message:
-            return error_message
-        
+    # T-test analysis
+    def t_test_analysis(cols):
+        check_columns(cols)
         results = []
         for i, row in df.iterrows():
-            country_scores = np.random.normal(loc=row['Avg_Reading_Score'], scale=5, size=100)
-            benchmark_scores = np.random.normal(loc=row['Benchmark_Reading_Score'], scale=5, size=100)
-            t_stat, p_value = ttest_ind(country_scores, benchmark_scores)
-            results.append(f"Country: {row['Country']}, t-statistic: {t_stat:.2f}, p-value: {p_value:.4f}")
-        columns_used = ['Avg_Reading_Score', 'Benchmark_Reading_Score']
-        return "\n".join(results) + f"\nColumns used: {columns_used}"
+            group1 = np.random.normal(loc=row[cols[0]], scale=5, size=100)
+            group2 = np.random.normal(loc=row[cols[1]], scale=5, size=100)
+            t_stat, p_value = ttest_ind(group1, group2)
+            results.append(f"t-statistic: {t_stat:.2f}, p-value: {p_value:.4f}")
+        return "\n".join(results)
     
-    # Subfunction for correlation analysis
-    def run_correlation_analysis(df):
-        required_columns = ['Avg_Reading_Score', 'Benchmark_Reading_Score']
-        error_message = check_columns(required_columns)
-        if error_message:
-            return error_message
-        
-        corr, p_value = pearsonr(df['Avg_Reading_Score'], df['Benchmark_Reading_Score'])
-        columns_used = ['Avg_Reading_Score', 'Benchmark_Reading_Score']
-        return f"Correlation between Avg Reading Score and Benchmark: {corr:.2f}, p-value: {p_value:.4f}\nColumns used: {columns_used}"
-
-    # Subfunction for ANOVA
-    def run_anova(df):
-        required_columns = ['Avg_Reading_Score', 'Country']
-        error_message = check_columns(required_columns)
-        if error_message:
-            return error_message
-        
-        groups = [df[df['Country'] == country]['Avg_Reading_Score'].values for country in df['Country'].unique()]
+    # Correlation analysis
+    def correlation_analysis(cols):
+        check_columns(cols)
+        corr, p_value = pearsonr(df[cols[0]], df[cols[1]])
+        return f"Correlation: {corr:.2f}, p-value: {p_value:.4f}"
+    
+    # ANOVA analysis
+    def anova_analysis(cols):
+        check_columns([cols[0], cols[1]])
+        groups = [df[df[cols[1]] == group][cols[0]].values for group in df[cols[1]].unique()]
         f_stat, p_value = f_oneway(*groups)
-        columns_used = ['Avg_Reading_Score', 'Country']
-        return f"ANOVA F-statistic: {f_stat:.2f}, p-value: {p_value:.4f}\nColumns used: {columns_used}"
+        return f"ANOVA F-statistic: {f_stat:.2f}, p-value: {p_value:.4f}"
     
-    # Subfunction for linear regression
-    def run_linear_regression(df):
-        required_columns = ['Parental_Education', 'School_Resources', 'Teacher_Experience', 'Avg_Reading_Score']
-        error_message = check_columns(required_columns)
-        if error_message:
-            return error_message
-        
-        X = df[['Parental_Education', 'School_Resources', 'Teacher_Experience']]
-        X = sm.add_constant(X)  # Adds a constant term to the predictor
-        y = df['Avg_Reading_Score']  # Dependent variable
+    # Linear regression analysis
+    def linear_regression(cols):
+        check_columns(cols)
+        X = df[cols[:-1]]
+        X = sm.add_constant(X)
+        y = df[cols[-1]]
         model = sm.OLS(y, X).fit()
-        columns_used = ['Parental_Education', 'School_Resources', 'Teacher_Experience', 'Avg_Reading_Score']
-        return str(model.summary()) + f"\nColumns used: {columns_used}"
-
-    # Subfunction for Chi-Square test
-    def run_chi_square(df):
-        required_columns = ['Gender', 'Reading_Proficiency_Level']
-        error_message = check_columns(required_columns)
-        if error_message:
-            return error_message
-        
-        contingency_table = pd.crosstab(df['Gender'], df['Reading_Proficiency_Level'])
-        chi2, p, dof, ex = chi2_contingency(contingency_table)
-        columns_used = ['Gender', 'Reading_Proficiency_Level']
-        return f"Chi-square statistic: {chi2:.2f}, p-value: {p:.4f}\nColumns used: {columns_used}"
+        return model.summary().as_text()
     
-    # Subfunction for logistic regression
-    def run_logistic_regression(df):
-        required_columns = ['Parental_Education', 'School_Resources', 'Teacher_Experience', 'Avg_Reading_Score']
-        error_message = check_columns(required_columns)
-        if error_message:
-            return error_message
-        
-        X = df[['Parental_Education', 'School_Resources', 'Teacher_Experience']]
-        X = sm.add_constant(X)  # Adds a constant term to the predictor
-        y = (df['Avg_Reading_Score'] >= 500).astype(int)  # Dependent variable (binary)
+    # Chi-Square test
+    def chi_square_test(cols):
+        check_columns(cols)
+        contingency_table = pd.crosstab(df[cols[0]], df[cols[1]])
+        chi2, p, _, _ = chi2_contingency(contingency_table)
+        return f"Chi-square statistic: {chi2:.2f}, p-value: {p:.4f}"
+    
+    # Logistic regression analysis
+    def logistic_regression(cols):
+        check_columns(cols)
+        X = df[cols[:-1]]
+        X = sm.add_constant(X)
+        y = (df[cols[-1]] >= 500).astype(int)
         model = sm.Logit(y, X).fit()
-        columns_used = ['Parental_Education', 'School_Resources', 'Teacher_Experience', 'Avg_Reading_Score']
-        return str(model.summary()) + f"\nColumns used: {columns_used}"
-
-    # Subfunction for K-Means Clustering
-    def run_kmeans_clustering(df):
-        required_columns = ['Avg_Reading_Score', 'Parental_Education', 'School_Resources']
-        error_message = check_columns(required_columns)
-        if error_message:
-            return error_message
-        
-        kmeans = KMeans(n_clusters=3)
-        df['Cluster'] = kmeans.fit_predict(df[['Avg_Reading_Score', 'Parental_Education', 'School_Resources']])
-        columns_used = ['Avg_Reading_Score', 'Parental_Education', 'School_Resources']
-        return df[['Country', 'Cluster']].to_string() + f"\nColumns used: {columns_used}"
-
-    # Subfunction for PCA
-    def run_pca(df):
-        required_columns = ['Parental_Education', 'School_Resources', 'Teacher_Experience']
-        error_message = check_columns(required_columns)
-        if error_message:
-            return error_message
-        
-        pca = PCA(n_components=2)
-        components = pca.fit_transform(df[['Parental_Education', 'School_Resources', 'Teacher_Experience']])
-        columns_used = ['Parental_Education', 'School_Resources', 'Teacher_Experience']
-        return pd.DataFrame(components, columns=['PC1', 'PC2']).to_string() + f"\nColumns used: {columns_used}"
+        return model.summary().as_text()
     
-    # Subfunction for MANOVA
-    def run_manova(df):
-        required_columns = ['Parental_Education', 'School_Resources', 'Avg_Reading_Score', 'Reading_Enjoyment']
-        error_message = check_columns(required_columns)
-        if error_message:
-            return error_message
-        
-        X = df[['Parental_Education', 'School_Resources']]
-        y = df[['Avg_Reading_Score', 'Reading_Enjoyment']]
+    # K-Means clustering
+    def kmeans_clustering(cols):
+        check_columns(cols)
+        kmeans = KMeans(n_clusters=3)
+        df['Cluster'] = kmeans.fit_predict(df[cols])
+        return df[['Country', 'Cluster']].to_string()
+    
+    # Principal Component Analysis (PCA)
+    def pca_analysis(cols):
+        check_columns(cols)
+        pca = PCA(n_components=2)
+        components = pca.fit_transform(df[cols])
+        return pd.DataFrame(components, columns=['PC1', 'PC2']).to_string()
+    
+    # MANOVA analysis
+    def manova_analysis(cols):
+        check_columns(cols)
+        X = df[cols[:-2]]
+        y = df[cols[-2:]]
         manova = MANOVA(endog=y, exog=X)
-        columns_used = ['Parental_Education', 'School_Resources', 'Avg_Reading_Score', 'Reading_Enjoyment']
+        return manova.mv_test().summary()
+
+    # Map input string to analysis function and parse columns
+    analysis_mapping = {
+        't-test': (t_test_analysis, 2),
+        'correlation': (correlation_analysis, 2),
+        'anova': (anova_analysis, 2),
+        'linear regression': (linear_regression, 'multi'),
+        'chi-square': (chi_square_test, 2),
+        'logistic regression': (logistic_regression, 'multi'),
+        'clustering': (kmeans_clustering, 'multi'),
+        'pca': (pca_analysis, 'multi'),
+        'manova': (manova_analysis, 'multi'),
+    }
+    
+    # Find the relevant analysis based on input_string
+    for analysis_type, (func, col_count) in analysis_mapping.items():
+        if analysis_type in input_string.lower():
+            if col_count == 2:
+                # Extract 2 columns from input_string
+                cols = extract_columns(input_string)
+                if not cols:
+                    return f"Error: Could not find the two required columns for {analysis_type} in the input string."
+            else:
+                # Handle the multi-column case (e.g., regression or clustering)
+                cols = input_string.split("using ")[1].split(", ")
+                check_columns(cols)
+            
+            return func(cols)
+    
+    return "No valid analysis type found in input_string."
+

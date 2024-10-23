@@ -161,20 +161,26 @@ def custom_plot_from_string_to_s3(plot_code_string):
         # Prepare a dictionary to capture variables from exec
         local_vars = {}
         
-        # Execute the custom plotting code and capture local variables
-        exec(plot_code_string, {}, local_vars)
+        try:
+            # Execute the custom plotting code and capture local variables
+            exec(plot_code_string, {}, local_vars)
+        except Exception as e:
+            return f"Error during plot code execution: {str(e)}"
         
         # Get the 'fig' variable from the executed code
         fig = local_vars.get('fig', None)
         
         if fig is None:
-            raise ValueError("The code did not produce a 'fig' object.")
-        
-        # Save the plot to a temporary file (in memory)
-        img_data = BytesIO()
-        fig.savefig(img_data, format='png')
-        plt.close()
-        img_data.seek(0)
+            return "Error: The code did not produce a 'fig' object."
+
+        try:
+            # Save the plot to a temporary file (in memory)
+            img_data = BytesIO()
+            fig.savefig(img_data, format='png')
+            plt.close()
+            img_data.seek(0)
+        except Exception as e:
+            return f"Error during plot saving: {str(e)}"
         
         # Initialize a boto3 session and S3 client
         session = boto3.Session()
@@ -185,14 +191,139 @@ def custom_plot_from_string_to_s3(plot_code_string):
         # Upload the image to S3 using upload_fileobj
         try:
             s3.upload_fileobj(img_data, bucket_name, object_name)
-            # Build and return the S3 URL
-            s3_url = f'https://{bucket_name}.s3.amazonaws.com/{object_name}'
-            print(f"Image successfully uploaded to: {s3_url}")
-            return s3_url
         except Exception as e:
-            print(f"An error occurred during the upload: {e}")
-            return f"An error occurred: {str(e)}"
+            return f"Error during S3 upload: {str(e)}"
+
+        # Build and return the S3 URL
+        s3_url = f'https://{bucket_name}.s3.amazonaws.com/{object_name}'
+        print(f"Image successfully uploaded to: {s3_url}")
+        return s3_url
     
     except Exception as e:
-        print(f"Error occurred while creating plot: {e}")
-        raise
+        return f"General error: {str(e)}"
+
+@tool
+def flexible_plot_from_dict_to_s3(plot_params):
+    """
+    Generates a flexible plot (any type) using input parameters from a dictionary, uploads it to S3, 
+    and returns the S3 URL.
+
+    Args:
+        plot_params (dict): Dictionary containing plot parameters.
+        
+        Mandatory Elements:
+        - plot_type (str): The type of plot to generate (e.g., scatter, line, bar, hist, etc.).
+        - data (dict): A dictionary of data columns with lists of values.
+        
+        Optional Elements (depending on the plot type):
+        - x (str): Column name for the x-axis (if required by the plot type).
+        - y (str): Column name for the y-axis (if required by the plot type).
+        - hue (str): Column for color grouping (legend disabled by default).
+        - labels (str): Column to label individual points in the plot (shown next to points).
+        - trendline (bool): Add a trendline to the scatterplot (default: False).
+        - rotate_labels (int): Degree to rotate x-axis labels for readability (default: 0).
+        - adjust_labels (bool): If True, automatically adjust label spacing (default: False).
+        - show_values (bool): Show values next to data points instead of using a legend (default: True).
+        
+    Returns:
+        str: Public URL of the uploaded image in S3 or an error message if an error occurs.
+    """
+    try:
+        # Extract parameters from the dictionary
+        plot_type = plot_params.pop('plot_type', 'scatter')
+        data_dict = plot_params.pop('data', {})
+        df = pd.DataFrame(data_dict)  # Convert data to DataFrame
+        trendline = plot_params.pop('trendline', False)
+        hue = plot_params.pop('hue', None)
+        labels_column = plot_params.pop('labels', None)
+        
+        # X-axis label rotation and adjustment options
+        rotate_labels = plot_params.pop('rotate_labels', 0)  # Degree to rotate labels (default: no rotation)
+        adjust_labels = plot_params.pop('adjust_labels', False)  # Auto-adjust label spacing (default: False)
+        show_values = plot_params.pop('show_values', True)  # Show values next to points instead of using a legend
+
+        # Retrieve x and y columns, if they exist in the parameters
+        x_column = plot_params.get('x')
+        y_column = plot_params.get('y')
+
+        # Create a new figure and axis
+        fig, ax = plt.subplots(figsize=(7, 5))
+
+        # Plot logic based on plot_type
+        if plot_type == "scatter":
+            if x_column and y_column:
+                sns.scatterplot(data=df, x=x_column, y=y_column, hue=hue, ax=ax, legend=False)  # Disable legend
+
+                if trendline:
+                    sns.regplot(data=df, x=x_column, y=y_column, ax=ax, scatter=False, color='red')
+
+                # Show values next to the points (no legend)
+                if show_values and labels_column:
+                    for i, point in df.iterrows():
+                        ax.text(point[x_column], point[y_column], str(point[labels_column]), 
+                                fontsize=9, ha='right', va='bottom')
+
+        elif plot_type == "line":
+            if x_column and y_column:
+                sns.lineplot(data=df, x=x_column, y=y_column, hue=hue, ax=ax, legend=False)
+
+                if show_values and labels_column:
+                    for i, point in df.iterrows():
+                        ax.text(point[x_column], point[y_column], str(point[labels_column]), 
+                                fontsize=9, ha='right', va='bottom')
+
+        elif plot_type == "bar":
+            if x_column and y_column:
+                sns.barplot(data=df, x=x_column, y=y_column, hue=hue, ax=ax, legend=False)
+
+                if show_values and labels_column:
+                    for i, point in df.iterrows():
+                        ax.text(point[x_column], point[y_column], str(point[labels_column]), 
+                                fontsize=9, ha='center', va='bottom')
+
+        elif plot_type == "hist":
+            if x_column:
+                sns.histplot(data=df, x=x_column, hue=hue, ax=ax, multiple="stack", legend=False)
+
+        # Apply additional customizations (title, labels, etc.)
+        title = plot_params.get('title')
+        xlabel = plot_params.get('xlabel')
+        ylabel = plot_params.get('ylabel')
+
+        if title:
+            ax.set_title(title)
+        if xlabel:
+            ax.set_xlabel(xlabel)
+        if ylabel:
+            ax.set_ylabel(ylabel)
+
+        # Apply x-axis label formatting
+        if rotate_labels:
+            plt.xticks(rotation=rotate_labels, ha='right')
+
+        if adjust_labels:
+            fig.autofmt_xdate()  # Auto-adjust label spacing for better readability
+
+        # Save the plot to a temporary file (in memory)
+        img_data = BytesIO()
+        plt.savefig(img_data, format='png')
+        plt.close()
+        img_data.seek(0)
+
+        # Initialize a boto3 session and S3 client
+        session = boto3.Session()
+        s3 = session.client('s3')
+        bucket_name = "gdsc-bucket-381492151587"  # Replace with your S3 bucket name
+        object_name = f"flexible_charts/{uuid4()}.png"
+
+        # Upload the image to S3 using upload_fileobj
+        try:
+            s3.upload_fileobj(img_data, bucket_name, object_name)
+            # Return the S3 URL
+            s3_url = f'https://{bucket_name}.s3.amazonaws.com/{object_name}'
+            return s3_url
+        except Exception as e:
+            return f"Error during S3 upload: {str(e)}"
+
+    except Exception as e:
+        return f"General error: {str(e)}"
