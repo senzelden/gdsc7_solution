@@ -1,3 +1,4 @@
+import pickle
 import requests
 from io import BytesIO
 from langchain_core.tools import tool
@@ -12,6 +13,8 @@ from langchain.load import dumps, loads
 from pydantic import BaseModel
 from operator import itemgetter
 from langchain_core.runnables import RunnablePassthrough
+
+
 
 
 class Config:
@@ -150,3 +153,114 @@ def create_agentic_system(question: str, pdf_url: str):
     except Exception as e:
         # Catch any errors in document processing, retrieval, or RAG generation
         return f"Error: An issue occurred during processing. Details: {str(e)}"
+
+@tool
+def retrieve_from_pickle(pkl_file_name: str, question: str) -> str:
+    """
+    Retrieves relevant documents from a pickled vectorstore and generates an answer to a given question.
+    
+    This function first loads documents and embeddings from a specified pickle file, recreates a vectorstore 
+    using the loaded data, and then retrieves relevant documents based on a user-provided question. The function 
+    generates three alternative versions of the user’s question, retrieves the documents, and returns an AI-generated 
+    response based on the retrieved documents using a RAG (Retrieval-Augmented Generation) approach.
+
+    If any errors occur during the process, the function returns a descriptive error message.
+
+    Parameters:
+    ----------
+    pkl_file_name : str
+        The name of the pickle file that contains the documents and their embeddings.
+        
+    question : str
+        The question posed by the user to retrieve relevant documents and generate an answer.
+        
+    Returns:
+    -------
+    str
+        The final generated answer from the retrieved documents in response to the user's question,
+        or an error message if the process fails.
+    """
+
+    try:
+        # Initialize Hugging Face embeddings once when the class is instantiated
+        model_name = "BAAI/bge-large-en-v1.5"
+        model_kwargs = {'device': 'cpu'}
+        encode_kwargs = {'normalize_embeddings': True}
+
+        hf_embeddings = HuggingFaceBgeEmbeddings(
+            model_name=model_name,
+            model_kwargs=model_kwargs,
+            encode_kwargs=encode_kwargs
+        )
+        
+        # Load the pickled documents and embeddings
+        with open(pkl_file_name, "rb") as f:
+            data = pickle.load(f)
+
+        documents = data["documents"]
+
+        # Recreate the vectorstore from the loaded documents
+        vectorstore = Chroma.from_documents(documents=documents, embedding=hf_embeddings)
+
+        # Use the vectorstore retriever
+        retriever = vectorstore.as_retriever()
+
+        # Multi Query: Different Perspectives
+        template = """You are an AI language model assistant. Your task is to generate three 
+        different versions of the given user question to retrieve relevant documents from a vector 
+        database. Provide these alternative questions separated by newlines. 
+        Original question: {question}"""
+        
+        prompt_perspectives = ChatPromptTemplate.from_template(template)
+
+        generate_queries = (
+            prompt_perspectives
+            | ChatBedrock(model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", model_kwargs={'temperature': 0, "max_tokens": 8192})
+            | StrOutputParser()
+            | (lambda x: x.split("\n"))
+        )
+
+        def get_unique_union(documents: list[list]):
+            """Unique union of retrieved docs"""
+            flattened_docs = [dumps(doc) for sublist in documents for doc in sublist]
+            unique_docs = list(set(flattened_docs))
+            return [loads(doc) for doc in unique_docs]
+
+        # Generate queries based on the original question
+        queries = generate_queries.invoke({"question": question})
+
+        # Retrieve documents for each query
+        retrieved_docs = []
+        for query in queries:
+            retrieved_docs.append(retriever.get_relevant_documents(query))
+
+        # Get a unique set of retrieved documents
+        docs = get_unique_union(retrieved_docs)
+
+        # RAG Chain to generate the final answer
+        rag_template = """Answer the following question based on this context:
+
+        {context}
+
+        Question: {question}
+
+        Please always provide direct citations in your summary, but don't mention the source.
+
+        Answer:
+        """
+        
+        prompt = ChatPromptTemplate.from_template(rag_template)
+
+        final_rag_chain = (
+            {"context": docs, "question": question}
+            | prompt
+            | ChatBedrock(model_id="anthropic.claude-3-5-sonnet-20240620-v1:0", model_kwargs={'temperature': 0, "max_tokens": 8192})
+            | StrOutputParser()
+        )
+
+        # Return the final answer from the RAG chain
+        return final_rag_chain.invoke({"question": question})
+
+    except Exception as e:
+        # Return a string describing the error
+        return f"An error occurred: {str(e)}"

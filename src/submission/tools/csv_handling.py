@@ -3,7 +3,90 @@ import numpy as np
 import pandas as pd
 import requests
 from io import BytesIO
+import tabula
+import json
+import tempfile
+import re
+import tabula
+import pandas as pd
+import requests
+import json
+import tempfile
 
+
+@tool
+def extract_table_from_url_to_string_with_auto_cleanup(pdf_url, pages='all'):
+    """
+    Extracts and cleans tables from a PDF URL and returns the data in JSON format,
+    while using a secure temporary file that is automatically deleted.
+
+    Args:
+    pdf_url (str): URL to the PDF file.
+    pages (str or int): Pages from which tables are extracted. 'all' for all pages or specific page numbers.
+
+    Returns:
+    str: JSON string of the cleaned extracted tables or an error message.
+    """
+    
+    def clean_table_data(tables):
+        """
+        Cleans the extracted tables by removing empty columns, handling missing data,
+        and ensuring consistency across rows, without altering dot values.
+
+        Args:
+        tables (list of DataFrame): List of DataFrames representing extracted tables.
+
+        Returns:
+        list of DataFrame: Cleaned tables.
+        """
+        cleaned_tables = []
+
+        for table in tables:
+            # Drop completely empty columns
+            table = table.dropna(axis=1, how='all')
+
+            # Drop rows with all NaN values
+            table = table.dropna(how='all')
+
+            table = table.applymap(map_dots_to_yes_no)
+
+            # Optionally, fill remaining NaN with empty strings or another placeholder
+            table = table.fillna('')  # Customize this as needed
+
+            # Filter out tables with insufficient data (for example, less than 2 columns)
+            if len(table.columns) > 1:
+                cleaned_tables.append(table)
+
+        return cleaned_tables
+    
+    try:
+        # Download the PDF file from the URL
+        response = requests.get(pdf_url)
+        if response.status_code != 200:
+            return json.dumps({"error": f"Failed to download PDF, status code: {response.status_code}"}, indent=2)
+
+        # Create a secure temporary file that is automatically deleted upon closing
+        with tempfile.NamedTemporaryFile(delete=True, suffix=".pdf") as temp_pdf:
+            temp_pdf.write(response.content)
+            temp_pdf.flush()  # Ensure all data is written to the file before reading
+
+            # Extract tables from the PDF using the temporary file
+            tables = tabula.read_pdf(temp_pdf.name, pages=pages, multiple_tables=True, lattice=True)
+
+            if not tables:
+                return json.dumps({"error": "No tables found in the PDF."}, indent=2)
+
+            # Clean the extracted tables (without changing dot values)
+            cleaned_tables = clean_table_data(tables)
+        
+            # Convert the cleaned list of DataFrames to a string format
+            tables_str = "\n\n".join([table.to_string(index=False) for table in cleaned_tables])
+
+            # Return the string representation
+            return tables_str
+    
+    except Exception as e:
+        return json.dumps({"error": str(e)}, indent=2)
 
 @tool
 def csv_to_json_string(file_path: str, sep: str = ";") -> str:

@@ -8,7 +8,6 @@ import boto3
 from uuid import uuid4
 from io import BytesIO
 
-
 @tool
 def create_quickchart_url(
     chart_input: dict
@@ -218,12 +217,11 @@ def flexible_plot_from_dict_to_s3(plot_params):
         Optional Elements (depending on the plot type):
         - x (str): Column name for the x-axis (if required by the plot type).
         - y (str): Column name for the y-axis (if required by the plot type).
-        - hue (str): Column for color grouping (legend disabled by default).
+        - hue (str): Column for color grouping.
         - labels (str): Column to label individual points in the plot (shown next to points).
-        - trendline (bool): Add a trendline to the scatterplot (default: False).
         - rotate_labels (int): Degree to rotate x-axis labels for readability (default: 0).
         - adjust_labels (bool): If True, automatically adjust label spacing (default: False).
-        - show_values (bool): Show values next to data points instead of using a legend (default: True).
+        - horizontal (bool): If True, plot horizontal bar chart (default: True for bar charts).
         
     Returns:
         str: Public URL of the uploaded image in S3 or an error message if an error occurs.
@@ -233,57 +231,52 @@ def flexible_plot_from_dict_to_s3(plot_params):
         plot_type = plot_params.pop('plot_type', 'scatter')
         data_dict = plot_params.pop('data', {})
         df = pd.DataFrame(data_dict)  # Convert data to DataFrame
-        trendline = plot_params.pop('trendline', False)
+        
         hue = plot_params.pop('hue', None)
         labels_column = plot_params.pop('labels', None)
         
         # X-axis label rotation and adjustment options
         rotate_labels = plot_params.pop('rotate_labels', 0)  # Degree to rotate labels (default: no rotation)
         adjust_labels = plot_params.pop('adjust_labels', False)  # Auto-adjust label spacing (default: False)
-        show_values = plot_params.pop('show_values', True)  # Show values next to points instead of using a legend
+        
+        # Horizontal bar chart preference (default to True for bar plots)
+        horizontal = plot_params.pop('horizontal', True if plot_type == 'bar' else False)
 
-        # Retrieve x and y columns, if they exist in the parameters
+        # Set default palette to 'pastel'
+        sns.set_palette('pastel')
+        
+        # Retrieve x and y columns
         x_column = plot_params.get('x')
         y_column = plot_params.get('y')
 
-        # Create a new figure and axis
-        fig, ax = plt.subplots(figsize=(7, 5))
+        # Validate the presence of x and y columns
+        if x_column is None or y_column is None:
+            return "Error: 'x' and 'y' columns must be provided."
 
-        # Plot logic based on plot_type
-        if plot_type == "scatter":
-            if x_column and y_column:
-                sns.scatterplot(data=df, x=x_column, y=y_column, hue=hue, ax=ax, legend=False)  # Disable legend
+        # Insert validation for heatmap plot type
+        if plot_type == "heatmap":
+            # Ensure x and y are strings, not lists
+            if isinstance(x_column, list) or isinstance(y_column, list):
+                return "Error: 'x' and 'y' for heatmap must be single column names, not lists."
 
-                if trendline:
-                    sns.regplot(data=df, x=x_column, y=y_column, ax=ax, scatter=False, color='red')
+            # Validate the presence of x and y columns in the dataframe
+            if x_column not in df.columns or y_column not in df.columns:
+                return f"Error: The column '{x_column}' or '{y_column}' does not exist in the data."
 
-                # Show values next to the points (no legend)
-                if show_values and labels_column:
-                    for i, point in df.iterrows():
-                        ax.text(point[x_column], point[y_column], str(point[labels_column]), 
-                                fontsize=9, ha='right', va='bottom')
+            # Pivot the data for heatmap if necessary (pivot columns and index)
+            heatmap_data = df.pivot(index=y_column, columns=x_column)
 
-        elif plot_type == "line":
-            if x_column and y_column:
-                sns.lineplot(data=df, x=x_column, y=y_column, hue=hue, ax=ax, legend=False)
-
-                if show_values and labels_column:
-                    for i, point in df.iterrows():
-                        ax.text(point[x_column], point[y_column], str(point[labels_column]), 
-                                fontsize=9, ha='right', va='bottom')
-
-        elif plot_type == "bar":
-            if x_column and y_column:
-                sns.barplot(data=df, x=x_column, y=y_column, hue=hue, ax=ax, legend=False)
-
-                if show_values and labels_column:
-                    for i, point in df.iterrows():
-                        ax.text(point[x_column], point[y_column], str(point[labels_column]), 
-                                fontsize=9, ha='center', va='bottom')
-
-        elif plot_type == "hist":
-            if x_column:
-                sns.histplot(data=df, x=x_column, hue=hue, ax=ax, multiple="stack", legend=False)
+            # Create heatmap plot
+            sns.heatmap(heatmap_data)
+        
+        # Other plot types (scatter, bar, line, etc.)
+        else:
+            # Example for bar plot
+            if plot_type == "bar":
+                if horizontal:
+                    sns.barplot(data=df, x=y_column, y=x_column, hue=hue)
+                else:
+                    sns.barplot(data=df, x=x_column, y=y_column, hue=hue)
 
         # Apply additional customizations (title, labels, etc.)
         title = plot_params.get('title')
@@ -291,18 +284,22 @@ def flexible_plot_from_dict_to_s3(plot_params):
         ylabel = plot_params.get('ylabel')
 
         if title:
-            ax.set_title(title)
+            plt.title(title)
         if xlabel:
-            ax.set_xlabel(xlabel)
+            plt.xlabel(xlabel)
         if ylabel:
-            ax.set_ylabel(ylabel)
+            plt.ylabel(ylabel)
 
         # Apply x-axis label formatting
         if rotate_labels:
             plt.xticks(rotation=rotate_labels, ha='right')
 
         if adjust_labels:
-            fig.autofmt_xdate()  # Auto-adjust label spacing for better readability
+            plt.gcf().autofmt_xdate()  # Auto-adjust label spacing for better readability
+
+        # Adjust layout to prevent labels from being cut off
+        plt.tight_layout()
+        plt.subplots_adjust(left=0.2, right=0.95, top=0.85, bottom=0.2)
 
         # Save the plot to a temporary file (in memory)
         img_data = BytesIO()
@@ -313,13 +310,12 @@ def flexible_plot_from_dict_to_s3(plot_params):
         # Initialize a boto3 session and S3 client
         session = boto3.Session()
         s3 = session.client('s3')
-        bucket_name = "gdsc-bucket-381492151587"  # Replace with your S3 bucket name
+        bucket_name = "asd"  # Replace with your S3 bucket name
         object_name = f"flexible_charts/{uuid4()}.png"
 
         # Upload the image to S3 using upload_fileobj
         try:
             s3.upload_fileobj(img_data, bucket_name, object_name)
-            # Return the S3 URL
             s3_url = f'https://{bucket_name}.s3.amazonaws.com/{object_name}'
             return s3_url
         except Exception as e:
