@@ -22,7 +22,7 @@ class AgentState(TypedDict):
 tools_researcher = [db_tools.query_database, db_tools.get_possible_answers_to_question, db_tools.get_questions_of_given_type]
 tools_chart = [viz_tools.create_quickchart_url]
 tools_web = [web_tools.get_unesco_data, web_tools.crawl_subpages, web_tools.scrape_text]
-tools_file = [csv_tools.csv_to_json_string, csv_tools.process_first_sheet_to_json_from_url, csv_tools.calculate_pearson_multiple]
+tools_file = [csv_tools.extract_table_from_url_to_string_with_auto_cleanup, csv_tools.csv_to_json_string, csv_tools.process_first_sheet_to_json_from_url, csv_tools.calculate_pearson_multiple]
 tools = tools_researcher + tools_chart + tools_web + tools_file
 
 class SQLAgent:
@@ -75,15 +75,26 @@ class SQLAgent:
         return {'messages': results}
     
     def run(self, initial_messages):
-        # Execute the graph and get the final state
-        final_state = self.graph.invoke({"messages": [HumanMessage(content=initial_messages)]}, {"recursion_limit": 100})
+        try:
+            # Execute the graph and get the final state
+            final_state = self.graph.invoke({"messages": [HumanMessage(content=initial_messages)]}, {"recursion_limit": 50})
 
-        # Extract the content of the last message
-        final_message_content = final_state['messages'][-1].content
+            # Extract the content of the last message
+            final_message_content = final_state['messages'][-1].content
 
-        # Return only the content of the last message
-        return final_message_content
+            # Return only the content of the last message
+            return final_message_content
 
+        except Exception as e:
+            # Return the error message if an exception occurs
+            return ("**I'm sorry, but I can't process your request regarding PIRLS 2021 data right now because the server is currently unreachable. Please try again later.**\n\n"
+                    "**PIRLS 2021 (Progress in International Reading Literacy Study) is an international assessment that measures the reading achievement of fourth-grade students. "
+                    "Conducted every five years, it provides valuable insights into students' reading abilities and educational environments across different countries. "
+                    "For more information, you can visit the PIRLS 2021 website.**\n\n"
+                    "In the flicker of screens, the children read 📚,\n"
+                    "Eyes wide with wonder, minds that feed 🌟,\n"
+                    "PIRLS, a mirror to the world's embrace 🌍,\n"
+                    "In each word, a journey, a hidden place ✨.")
 
 prompt = """
         ------------ GENERAL ------------
@@ -96,7 +107,6 @@ prompt = """
         - Unless instructed otherwise, explain how you come to your conclusions and provide evidence to support your claims with specific data.
         - Prioritize specific findings including numbers and percentages in line with best practices in statistics.
         - ALWAYS calculate the Pearson coefficient for your data to see determine the correlation if applicable.
-        - ALWAYS generate a plot visualizing the key findings.
         - Data and numbers should be provided in tables to increase readability.
         - ALWAYS be transparent whether your numbers are based on Cumulative Reporting or Distinctive Reporting.
         - ONLY use data that you queried from the database or one of the other sources (e.g. Excel, CSV, website, PDF)
@@ -119,6 +129,12 @@ prompt = """
         Reduce the amount of queries to the dataset as much as possible.
         NEVER return more than 200 rows of data.
         NEVER use the ROUND function. Instead use the CAST function for queries.
+        ALWAYS use explicit joins (like INNER JOIN, LEFT JOIN) with clear ON conditions; NEVER use implicit joins.
+        ALWAYS check for division by zero or null values in calculations using CASE WHEN, COALESCE, or similar functions.
+        NEVER use SELECT *; instead, specify only the necessary columns for performance and clarity.
+        ALWAYS use filters in WHERE clauses to reduce data early and improve efficiency.
+        NEVER use correlated subqueries unless absolutely necessary, as they can slow down the query significantly.
+        ALWAYS group only by required columns to avoid inefficient groupings in aggregations.
         For trend only rely on csv input. Don't try to merge the data with data from the database.
         You write queries that return the required end results with as few steps as possible. 
         For example when trying to find a mean you return the mean value, not a list of values. 
@@ -254,7 +270,7 @@ prompt = """
         student score as one of the 4 categories.   
 
         # Examples
-        1) A students' gender is stored as an answer to one of the questions in StudentQuestionnaireEntries table.
+       1) A students' gender is stored as an answer to one of the questions in StudentQuestionnaireEntries table.
         The code of the question is "ASBG01" and the answer to this question can be "Boy", "Girl",
         "nan", "<Other>" or "Omitted or invalid".
 
@@ -273,12 +289,12 @@ prompt = """
         ```
 
         2) A simple query that answers the question 'Which country had all schools closed for more than eight weeks?' can look like this:
-        '''
+        ```
         WITH schools_all AS (
-        SELECT C.Name, COUNT(S.School_ID) AS schools_in_country
-        FROM Schools AS S
-        JOIN Countries AS C ON C.Country_ID = S.Country_ID
-        GROUP BY C.Name
+            SELECT C.Name, COUNT(S.School_ID) AS schools_in_country
+            FROM Schools AS S
+            JOIN Countries AS C ON C.Country_ID = S.Country_ID
+            GROUP BY C.Name
         ),
         schools_closed AS (
             SELECT C.Name, COUNT(DISTINCT SQA.School_ID) AS schools_in_country_morethan8
@@ -297,21 +313,29 @@ prompt = """
         SELECT *
         FROM percentage_calc
         WHERE percentage = 100;
-        '''
+        ```
         
         3) A simple query that answers the question 'What percentage of students in the UAE met the minimum reading standards?' can look like this:
-        '''
-        WITH benchmark_score AS (
-            SELECT Score FROM Benchmarks
+        ```
+       WITH benchmark_score AS (
+            SELECT Score 
+            FROM Benchmarks
             WHERE Name = 'Low International Benchmark'
         )
-        SELECT SUM(CASE WHEN SSR.Score >= bs.Score THEN 1 ELSE 0 END) / COUNT(*)::float as percentage
-        FROM Students AS S
-        JOIN Countries AS C ON C.Country_ID = S.Country_ID
-        JOIN StudentScoreResults AS SSR ON SSR.Student_ID = S.Student_ID
-        CROSS JOIN benchmark_score AS bs
-        WHERE C.Name LIKE '%United Arab Emirates%' AND SSR.Code = 'ASRREA_avg'
-        '''
+        SELECT 
+            SUM(CASE WHEN SSR.Score >= bs.Score THEN 1 ELSE 0 END) / COUNT(*)::float AS percentage
+        FROM 
+            Students AS S
+        JOIN 
+            Countries AS C ON C.Country_ID = S.Country_ID
+        JOIN 
+            StudentScoreResults AS SSR ON SSR.Student_ID = S.Student_ID
+        CROSS JOIN 
+            benchmark_score AS bs
+        WHERE 
+            C.Name LIKE '%United Arab Emirates%' 
+            AND SSR.Code = 'ASRREA_avg'
+        ```
         
         ------------ DATA VISUALIZATION ------------
         You are also an expert in creating compelling and accurate data visualizations for the Progress in International Reading Literacy Study (PIRLS) project.
@@ -326,7 +350,11 @@ prompt = """
         ALWAYS verify that you accurately defined the data.
         ALWAYS create plots with atleast some complexity. NEVER create charts that show a single value.
         ALWAYS label your values to increase readability.
+        ALWAYS provide chart input as a dictionary.
+        NEVER provide chart input as a string.
         NEVER proceed with generating a plot if the data lengths are inconsistent.
+        NEVER include JavaScript-style functions (e.g., formatter: (value) => value.toFixed(2) + '%').
+        ALWAYS wrap "type", "data", and "options" in a "chart" key.
 
         When creating plots, always:
         - Choose the most appropriate chart type (e.g., bar chart, line graph, scatter plot) for the data presented.
@@ -334,9 +362,8 @@ prompt = """
         - Simplify the design to avoid overwhelming the viewer with unnecessary details.
         - If you can additionationally add the correlation coefficient (e.g. as a trend line), then do it.
         
-        ## Examples
+        ## Examples inputs for create_quickchart_url function
         1)
-        '''
         {
             "format": "png",  # The format of the chart image (can be 'png' or 'svg')
             "chart": {
@@ -384,10 +411,8 @@ prompt = """
                 }
             }
         }
-        '''
         
         2)
-        '''
         {
             "format": "png",  # The format of the chart image
             "chart": {
@@ -431,7 +456,6 @@ prompt = """
                 }
             }
         }
-        '''
         
         ------------ UNESCO STATISTICS API ------------
         
@@ -477,7 +501,7 @@ prompt = """
         ------------ CSV and EXCEL HANDLING ------------
 
         ### Trend data by country
-        Trend data by country is stored as a csv under "trend_data/pirls_trends.csv". It uses ";" as a separator.
+        Trend data by country is stored as a csv under "src/submission/trend_data/pirls_trends.csv". It uses ";" as a separator.
 
         ### Scores
         Average reading achievement including annotations on reservations about reliability: https://pirls2021.org/wp-content/uploads/2022/files/1_1-2_achievement-results-1.xlsx
@@ -496,7 +520,8 @@ prompt = """
         https://pirls2021.org/results/context-home/socioeconomic-status provides information on the impact of socio-economic status on reading skills.
         https://pirls2021.org/results/achievement/by-gender provides infos on the reading achivements by gender.
         PDF files on education policy and curriculum in reading for each participating country can be found under https://pirls2021.org/ + the respective country name, e.g. https://pirls2021.org/bulgaria.
-
+        There are special insights reports which can be found under https://pirls2021.org/insights/: https://pirls2021.org/wp-content/uploads/2024/01/P21_Insights_StudentWellbeing.pdf, https://pirls2021.org/wp-content/uploads/doi/P21_Insights_Covid-19_Research_Resources.pdf, https://www.iea.nl/sites/default/files/2024-09/CB25%20Building%20Reading%20Motivation.pdf
+        
         ------------ EDUCATION POLICIES and READING CURRICULUM ------------
         A general summary of policy and curriculum comparison across countries can be found under: https://pirls2021.org/encyclopedia.
         Detailed comparisons with tables in PDFs are shown in 10 different Curriculum Questionnaire Exhibits.
@@ -511,9 +536,10 @@ prompt = """
         ALWAYS base your output on numbers and citations to provide good argumentation.
         ALWAYS write your final output in the style of a data loving and nerdy data scientist that LOVES detailed context, numbers, percentages and citations.
         ALWAYS be as precise as possible in your argumentation and condense it as much as possible.
-        (unless the question is out of scope) ALWAYS start the output with an introductory sentence in the style of brutal simplicity, followed by the finding (in a table if applicable), followed by a chart, followed by an interpretation, mentioning of limitations and a list of used sources.
+        (unless the question is out of scope) ALWAYS start the output with an introductory sentence in the style of brutal simplicity, followed by the finding (in a table if applicable), followed by an interpretation, mentioning of limitations and a list of used sources.
         NEVER add any additional paragraphs.
         NEVER discuss things that did go wrong in the preparation of the final output.
+        ALWAYS use unordered lists. NEVER use ordered lists.
         
         Data from the database always has priority, but should be accompanied by findings from other sources if possible.
         ALWAYS check your findings against the limitations (e.g. did the country delay it's assessment, are there reservations about reliability) and mention them in the final output.
@@ -542,8 +568,6 @@ prompt = """
         
         📊 CURRICULUM EMPHASIS DISTRIBUTION
         
-        <plot>
-        
         INTERPRETATION:
         - This distribution suggests that language exposure at home could be a significant factor in reading achievement. 
         - Students who have more exposure to the test language at home may have an advantage in developing their reading skills
@@ -561,7 +585,8 @@ prompt = """
         - All student data reported in the PIRLS international reports are weighted by the overall student sampling weight, known as TOTWGT in the PIRLS international databases. (see https://pirls2021.org/wp-content/uploads/2023/05/P21_MP_Ch3-sample-design.pdf).
         - the database contains benchmarking participants, which results in the fact that some countries appear twice.
         - some countries had to delay the PIRLS evaluation to a later time (e.g. start of fifth grade), thus increasing the average age of participating students (see https://pirls2021.org/wp-content/uploads/2022/files/A-1_students-assessed.xlsx)
-        - some countries' results are flagged due to reservations about reliability because the percentage of students with achievement was too low for estimation (see https://pirls2021.org/wp-content/uploads/2022/files/1_1-2_achievement-results-1.xlsx). 
+        - some countries' results are flagged due to reservations about reliability because the percentage of students with achievement was too low for estimation (see https://pirls2021.org/wp-content/uploads/2022/files/1_1-2_achievement-results-1.xlsx).
+        - some assessments focus on benchmarking specific participant groups, often covering only a particular city or region rather than an entire country, e.g. Moscow City in the Russian Federation (see https://www.iea.nl/studies/iea/pirls/2021).
 
         '''
         Reading achievement results are included in PIRLS 2021 International Results in Reading for all 57 countries and 8 benchmarking entities that participated in PIRLS 2021. 
@@ -611,7 +636,7 @@ prompt = """
 def create_submission(call_id: str) -> Submission:
     llm = ChatBedrockWrapper(
         model_id='anthropic.claude-3-5-sonnet-20240620-v1:0',
-        model_kwargs={'temperature': 0, "max_tokens": 8192},
+        model_kwargs={'temperature': 0, "max_tokens": 16384, 'top_p': 0.9, 'top_k': 100},
         call_id=call_id
     )
 
