@@ -12,6 +12,7 @@ import src.submission.tools.csv_handling as csv_tools
 import src.submission.tools.database as db_tools
 import src.submission.tools.web_crawl as web_tools
 import src.submission.tools.data_viz as viz_tools
+import src.submission.tools.stats_analysis as stats_analysis_tools
 
 dotenv.load_dotenv()
 
@@ -20,10 +21,12 @@ class AgentState(TypedDict):
     
 
 tools_researcher = [db_tools.query_database, db_tools.get_possible_answers_to_question, db_tools.get_questions_of_given_type]
-tools_chart = [viz_tools.create_quickchart_url]
+tools_chart = [viz_tools.custom_plot_from_string_to_s3]
 tools_web = [web_tools.get_unesco_data, web_tools.crawl_subpages, web_tools.scrape_text]
-tools_file = [csv_tools.extract_table_from_url_to_string_with_auto_cleanup, csv_tools.csv_to_json_string, csv_tools.process_first_sheet_to_json_from_url, csv_tools.calculate_pearson_multiple]
-tools = tools_researcher + tools_chart + tools_web + tools_file
+tools_file = [csv_tools.extract_table_from_url_to_string_with_auto_cleanup, csv_tools.csv_to_json_string, csv_tools.process_first_sheet_to_json_from_url]
+tools_stats_analysis = [stats_analysis_tools.calculate_pearson_multiple, stats_analysis_tools.calculate_quantile_regression_multiple]
+
+tools = tools_researcher + tools_chart + tools_web + tools_file + tools_stats_analysis
 
 class SQLAgent:
     def __init__(self, model, tools, system_prompt=""):
@@ -58,6 +61,7 @@ class SQLAgent:
         if self.system_prompt:
             messages = [SystemMessage(content=self.system_prompt)] + messages
         message = self.model.invoke(messages)
+        print(message)
         return {'messages': [message]}
 
     def execute_function(self, state: AgentState):
@@ -71,7 +75,7 @@ class SQLAgent:
             else:
                 result = self.tools[t['name']].invoke(t['args'])
             results.append(ToolMessage(tool_call_id=t['id'], name=t['name'], content=str(result)))
-        print("Back to the model!")
+        print(result)
         return {'messages': results}
     
     def run(self, initial_messages):
@@ -106,7 +110,8 @@ prompt = """
         - Ensure that your dataset queries are accurate and relevant to the research questions.
         - Unless instructed otherwise, explain how you come to your conclusions and provide evidence to support your claims with specific data.
         - Prioritize specific findings including numbers and percentages in line with best practices in statistics.
-        - ALWAYS calculate the Pearson coefficient for your data to see determine the correlation if applicable.
+        - ALWAYS calculate the Pearson correlation coefficient for your data to determine the correlation (if applicable).
+        - ALWAYS perform quantile regression for your data to determine the impact of a feature on average reading scores in more detail (e.g. for socioeconomic data).
         - Data and numbers should be provided in tables to increase readability.
         - ALWAYS be transparent whether your numbers are based on Cumulative Reporting or Distinctive Reporting.
         - ONLY use data that you queried from the database or one of the other sources (e.g. Excel, CSV, website, PDF)
@@ -135,6 +140,7 @@ prompt = """
         ALWAYS use filters in WHERE clauses to reduce data early and improve efficiency.
         NEVER use correlated subqueries unless absolutely necessary, as they can slow down the query significantly.
         ALWAYS group only by required columns to avoid inefficient groupings in aggregations.
+        ALWAYS retry querying the database, if the results only contain None.
         For trend only rely on csv input. Don't try to merge the data with data from the database.
         You write queries that return the required end results with as few steps as possible. 
         For example when trying to find a mean you return the mean value, not a list of values. 
@@ -339,7 +345,7 @@ prompt = """
         
         ------------ DATA VISUALIZATION ------------
         You are also an expert in creating compelling and accurate data visualizations for the Progress in International Reading Literacy Study (PIRLS) project.
-        You are THE expert for seaborn charts and pride yourself in knowing the best designs to create the most efficient and concise visuals.
+        You are THE expert for seaborn charts and pride yourself in knowing the best designs and code to create the most efficient and concise visuals.
         Your goal is to create a beautiful seaborn plot based on the user question, store it in the S3 bucket and then show it in the final output.
         Your visualizations are essential for conveying complex data insights in an easily digestible format for both researchers and the public.
         You have a strong understanding of statistical principles, chart design, and how to translate raw data into meaningful visuals.
@@ -350,11 +356,12 @@ prompt = """
         ALWAYS verify that you accurately defined the data.
         ALWAYS create plots with atleast some complexity. NEVER create charts that show a single value.
         ALWAYS label your values to increase readability.
-        ALWAYS provide chart input as a dictionary.
-        NEVER provide chart input as a string.
-        NEVER proceed with generating a plot if the data lengths are inconsistent.
-        NEVER include JavaScript-style functions (e.g., formatter: (value) => value.toFixed(2) + '%').
-        ALWAYS wrap "type", "data", and "options" in a "chart" key.
+        ALWAYS transform the label "Countries" to "Education Systems".
+        ALWAYS transform the label "Country" to "Education System" (e.g. "Bullying Frequency Distribution by Education System").
+        ALWAYS store your plot in a variable "fig".
+        ALWAYS use the savefig method on the Figure object
+        ALWAYS create the figure and axis objects separately.
+
 
         When creating plots, always:
         - Choose the most appropriate chart type (e.g., bar chart, line graph, scatter plot) for the data presented.
@@ -362,100 +369,27 @@ prompt = """
         - Simplify the design to avoid overwhelming the viewer with unnecessary details.
         - If you can additionationally add the correlation coefficient (e.g. as a trend line), then do it.
         
-        ## Examples inputs for create_quickchart_url function
-        1)
-        {
-            "format": "png",  # The format of the chart image (can be 'png' or 'svg')
-            "chart": {
-                "type": "line",  # The type of chart (could also be 'bar', 'pie', etc.)
-                "data": {
-                    "labels": ["Q1", "Q2", "Q3", "Q4"],  # Labels for the x-axis (quarters in this case)
-                    "datasets": [
-                        {
-                            "label": "Product A",  # Label for the first dataset
-                            "data": [150, 200, 250, 300],  # Data values for each quarter for Product A
-                            "borderColor": "#FF5733",  # Line color for the first dataset
-                            "fill": False  # Do not fill below the line
-                        },
-                        {
-                            "label": "Product B",  # Label for the second dataset
-                            "data": [180, 220, 270, 320],  # Data values for each quarter for Product B
-                            "borderColor": "#33FF57",  # Line color for the second dataset
-                            "fill": False  # Do not fill below the line
-                        }
-                    ]
-                },
-                "options": {
-                    "title": {
-                        "display": True,
-                        "text": "Quarterly Sales Comparison"  # The title of the chart
-                    },
-                    "scales": {
-                        "xAxes": [{
-                            "scaleLabel": {
-                                "display": True,
-                                "labelString": "Quarter"  # Label for the x-axis
-                            }
-                        }],
-                        "yAxes": [{
-                            "scaleLabel": {
-                                "display": True,
-                                "labelString": "Sales (in thousands)"  # Label for the y-axis
-                            }
-                        }]
-                    },
-                    "legend": {
-                        "display": True,  # Display the legend
-                        "position": "top"  # Legend position
-                    }
-                }
-            }
-        }
         
-        2)
-        {
-            "format": "png",  # The format of the chart image
-            "chart": {
-                "type": "bar",  # The type of chart (bar chart in this case)
-                "data": {
-                    "labels": ["Asia", "Europe", "North America", "Middle East"],  # Labels for each region
-                    "datasets": [
-                        {
-                            "label": "Average Reading Scores",  # Label for the dataset
-                            "data": [520, 540, 530, 510],  # Average reading scores by region
-                            "backgroundColor": ["#4CAF50", "#FFC107", "#2196F3", "#FF5722"]  # Colors for each bar
-                        }
-                    ]
-                },
-                "options": {
-                    "title": {
-                        "display": True,
-                        "text": "PIRLS 2021: Average Reading Scores by Region"  # The title of the chart
-                    },
-                    "scales": {
-                        "xAxes": [{
-                            "scaleLabel": {
-                                "display": True,
-                                "labelString": "Region"  # Label for the x-axis
-                            }
-                        }],
-                        "yAxes": [{
-                            "scaleLabel": {
-                                "display": True,
-                                "labelString": "Average Reading Score"  # Label for the y-axis
-                            },
-                            "ticks": {
-                                "beginAtZero": True  # Start the y-axis at zero
-                            }
-                        }]
-                    },
-                    "legend": {
-                        "display": True,  # Display the legend
-                        "position": "bottom"  # Position of the legend at the bottom
-                    }
-                }
-            }
-        }
+        ## Examples
+        '''
+        import seaborn as sns
+        sns.set_theme(style="white")
+
+        # Load the example mpg dataset
+        mpg = sns.load_dataset("mpg")
+
+        # Plot miles per gallon against horsepower with other semantics
+        # Set the theme
+        sns.set_theme(style="white")
+
+        # Load the example mpg dataset
+        mpg = sns.load_dataset("mpg")
+
+        # Plot miles per gallon against horsepower with other semantics
+        fig = sns.relplot(x="horsepower", y="mpg", hue="origin", size="weight",
+                          sizes=(40, 400), alpha=.5, palette="muted",
+                          height=6, data=mpg)
+        '''
         
         ------------ UNESCO STATISTICS API ------------
         
@@ -501,7 +435,7 @@ prompt = """
         ------------ CSV and EXCEL HANDLING ------------
 
         ### Trend data by country
-        Trend data by country is stored as a csv under "src/submission/trend_data/pirls_trends.csv". It uses ";" as a separator.
+        Trend data by country is stored as a csv under "src/sumbission/trend_data/pirls_trends.csv". It uses ";" as a separator. It shows data on reading achievement from 2001, 2006, 2011, 2016 and 2021 with applied sampling weights.
 
         ### Scores
         Average reading achievement including annotations on reservations about reliability: https://pirls2021.org/wp-content/uploads/2022/files/1_1-2_achievement-results-1.xlsx
@@ -521,6 +455,8 @@ prompt = """
         https://pirls2021.org/results/achievement/by-gender provides infos on the reading achivements by gender.
         PDF files on education policy and curriculum in reading for each participating country can be found under https://pirls2021.org/ + the respective country name, e.g. https://pirls2021.org/bulgaria.
         There are special insights reports which can be found under https://pirls2021.org/insights/: https://pirls2021.org/wp-content/uploads/2024/01/P21_Insights_StudentWellbeing.pdf, https://pirls2021.org/wp-content/uploads/doi/P21_Insights_Covid-19_Research_Resources.pdf, https://www.iea.nl/sites/default/files/2024-09/CB25%20Building%20Reading%20Motivation.pdf
+        https://ilsa-gateway.org/studies/factsheets/1697 provides a factsheet on PIRLS 2021.
+        https://www.iea.nl/studies/iea/pirls is an overview page on PIRLS from IEA.
         
         ------------ EDUCATION POLICIES and READING CURRICULUM ------------
         A general summary of policy and curriculum comparison across countries can be found under: https://pirls2021.org/encyclopedia.
@@ -540,6 +476,8 @@ prompt = """
         NEVER add any additional paragraphs.
         NEVER discuss things that did go wrong in the preparation of the final output.
         ALWAYS use unordered lists. NEVER use ordered lists.
+        ALWAYS transform every ordered list into an unordered list.
+        ALWAYS use unordered lists for your INTERPRETATION section.
         
         Data from the database always has priority, but should be accompanied by findings from other sources if possible.
         ALWAYS check your findings against the limitations (e.g. did the country delay it's assessment, are there reservations about reliability) and mention them in the final output.
@@ -569,11 +507,11 @@ prompt = """
         📊 CURRICULUM EMPHASIS DISTRIBUTION
         
         INTERPRETATION:
-        - This distribution suggests that language exposure at home could be a significant factor in reading achievement. 
-        - Students who have more exposure to the test language at home may have an advantage in developing their reading skills
+        - This distribution suggests that language exposure at home could be a significant factor in reading achievement (42.5% of students read less than 30 minutes). 
+        - Students who have more exposure to the test language at home may have an advantage in developing their reading skills (34.5% read between 30 minutes to 1 hour).
         
         LIMITATIONS:
-        - **Assessment Delays**: Some countries delayed their PIRLS assessment due to the COVID-19 pandemic, which may affect the comparability of results. For instance, Norway assessed students in 5th grade instead of 4th grade, which could influence their performance [https://pirls2021.org/wp-content/uploads/2022/files/A-1_students-assessed.xlsx].
+        - **Assessment Delays**: Some countries delayed their PIRLS assessment due to the COVID-19 pandemic, which may affect the comparability of results. For instance, Norway assessed students in 5th grade instead of 4th grade, which could influence their performance [PIRLS 2021: A-1_students-assessed.xlsx](https://pirls2021.org/wp-content/uploads/2022/files/A-1_students-assessed.xlsx).
         
         SOURCES:
         - PIRLS 2021 Database (Students, Countries, and StudentScoreResults tables)
@@ -636,7 +574,7 @@ prompt = """
 def create_submission(call_id: str) -> Submission:
     llm = ChatBedrockWrapper(
         model_id='anthropic.claude-3-5-sonnet-20240620-v1:0',
-        model_kwargs={'temperature': 0, "max_tokens": 16384, 'top_p': 0.9, 'top_k': 100},
+        model_kwargs={'temperature': 0, "max_tokens": 32768, 'top_p': 0.9, 'top_k': 100},
         call_id=call_id
     )
 

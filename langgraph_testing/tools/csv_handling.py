@@ -111,9 +111,6 @@ def csv_to_json_string(file_path: str, sep: str = ";") -> str:
         return json_string
     except Exception as e:
         return f"An error occurred: {e}"
-    
-
-    import pandas as pd
 
     
 @tool
@@ -143,45 +140,3 @@ def process_first_sheet_to_json_from_url(url: str) -> str:
         return json_result
     except Exception as e:
         return f"Error processing file from URL '{url}': {e}"
-
-@tool
-def calculate_pearson_multiple(base_feature_str, feature_str_list):
-    """
-    Calculate the Pearson correlation coefficient between a base feature and multiple other features.
-    
-    Parameters:
-    base_feature_str (str): A comma-separated string of numerical values representing the base feature.
-    feature_str_list (list of str): A list of comma-separated strings where each string represents a numerical feature to compare with the base feature.
-    
-    Returns:
-    dict: A dictionary where keys are 'Feature_1', 'Feature_2', etc., and values are the Pearson correlation coefficients between the base feature and each feature in the list.
-    
-    Raises:
-    ValueError: If the lengths of the base feature and any feature in the list do not match.
-    """
-    try:
-        # Convert base feature to a list of floats
-        base_feature = [float(i) for i in base_feature_str.split(',')]
-
-        # Dictionary to hold the correlation results
-        correlation_results = {}
-
-        for idx, feature_str in enumerate(feature_str_list):
-            # Convert each feature string to a list of floats
-            feature = [float(i) for i in feature_str.split(',')]
-
-            # Ensure both lists have the same length
-            if len(base_feature) != len(feature):
-                raise ValueError(f"Feature at index {idx} does not have the same number of elements as the base feature.")
-
-            # Calculate Pearson correlation for this feature
-            correlation_coefficient = np.corrcoef(base_feature, feature)[0, 1]
-            
-            # Store result in the dictionary with the feature index as key
-            correlation_results[f"Feature_{idx+1}"] = correlation_coefficient
-        
-        return correlation_results
-
-    except ValueError as e:
-        return f"Error: {str(e)}"
-    

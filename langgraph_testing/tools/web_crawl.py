@@ -72,7 +72,7 @@ def scrape_text(url: str, target_elements: list = ['p'], **attributes) -> dict:
                 texts.append(text)
         
         # Store the result for each target element
-        result[target_element] = texts[:7]  # Return only the first 8 texts for brevity
+        result[target_element] = texts[:10]  # Return only the first 8 texts for brevity
 
     return result
 
