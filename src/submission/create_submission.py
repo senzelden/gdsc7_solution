@@ -27,7 +27,6 @@ tools_chart = [viz_tools.custom_plot_from_string_to_s3]
 tools_web = [web_tools.get_unesco_data, web_tools.crawl_subpages, web_tools.scrape_text] # 
 tools_file = [csv_tools.process_first_sheet_to_json_from_url, csv_tools.extract_table_from_url_to_string_with_auto_cleanup]
 tools_pdf = [pdf_tools.extract_top_paragraphs_from_url]
-tools_stats = [stats_tools.analyze_pirls_data]
 tools_stats_analysis = [stats_analysis_tools.calculate_pearson_multiple, stats_analysis_tools.calculate_quantile_regression_multiple]
 tools_reasoning = [reasoning_tools.generate_sub_questions]
 tools = tools_pdf + tools_researcher + tools_chart + tools_web + tools_file + tools_stats_analysis + tools_reasoning
