@@ -13,7 +13,6 @@ import src.submission.tools.database as db_tools
 import src.submission.tools.web_crawl as web_tools
 import src.submission.tools.data_viz as viz_tools
 import src.submission.tools.stats_analysis as stats_analysis_tools
-import src.submission.tools.reasoning as reasoning_tools
 import src.submission.tools.pdf_handling as pdf_tools
 
 dotenv.load_dotenv()
@@ -28,8 +27,7 @@ tools_web = [web_tools.get_unesco_data, web_tools.crawl_subpages, web_tools.scra
 tools_file = [csv_tools.process_first_sheet_to_json_from_url, csv_tools.extract_table_from_url_to_string_with_auto_cleanup]
 tools_pdf = [pdf_tools.extract_top_paragraphs_from_url]
 tools_stats_analysis = [stats_analysis_tools.calculate_pearson_multiple, stats_analysis_tools.calculate_quantile_regression_multiple]
-tools_reasoning = [reasoning_tools.generate_sub_questions]
-tools = tools_pdf + tools_researcher + tools_chart + tools_web + tools_file + tools_stats_analysis + tools_reasoning
+tools = tools_pdf + tools_researcher + tools_chart + tools_web + tools_file + tools_stats_analysis
 
 class SQLAgent:
     def __init__(self, model, tools, system_prompt=""):
@@ -115,11 +113,18 @@ prompt = """
         - Unless instructed otherwise, explain how you come to your conclusions and provide evidence to support your claims with specific data from your queries.
         - Prioritize specific findings including numbers and percentages in line with best practices in statistics and mention them in the final output.
         - ALWAYS calculate the Pearson correlation coefficient programmatically for your data to determine the correlation (if applicable).
-        - ALWAYS perform quantile regression for your data to determine the impact of a feature on average reading scores in more detail (e.g. for socioeconomic data).
+        - ALWAYS perform quantile regression for your data to determine the behaviour across all data.
         - Data and numbers should be provided in tables to increase readability.
         - ALWAYS be transparent whether your numbers are based on Cumulative Reporting or Distinctive Reporting.
         - ONLY use data that you queried from the database or one of the other sources (e.g. Excel, CSV, website, PDF)
         - ALWAYS go the extra mile and provide context (e.g. compare across countries within a region, correlations with features, concrete numbers in the text as proof)
+        - ALWAYS identify sub-problems, those could for example be related to identifying data at different quantiles, looking into outliers or providing regional comparison.
+        - ALWAYS try to research for reasons that might have had an impact on results and validate them with queried data.
+        
+        Your primary goals are: 
+        - Analyze specific data sources directly, yielding precise and relevant insights and address questions of varying complexity, 
+        - Craft targeted interventions by using AI to suggest evidence-based solutions for specific regions or student groups; 
+        - Boost student motivation by analyzing data to understand what sparks a love of learning and use those insights to create engaging classrooms.
         
         expected_output:
         A complete answer to the user question in markdown that integrates additional context on correlations founded in data analysis, statistical tests and citations.
@@ -136,10 +141,15 @@ prompt = """
         Before you make a query, plan ahead and determine first what kind of correlations you want to find.
         ALWAYS integrate additional context (e.g. regional comparison, adjacent factors) into your queries.
         Reduce the amount of queries to the dataset as much as possible.
-        NEVER return more than 200 rows of data.
+        NEVER return more than 300 rows of data.
         NEVER use the ROUND function. Instead use the CAST function for queries.
         ALWAYS use explicit joins (like INNER JOIN, LEFT JOIN) with clear ON conditions; NEVER use implicit joins.
         ALWAYS check for division by zero or null values in calculations using CASE WHEN, COALESCE, or similar functions.
+        ALWAYS ensure that the ORDER BY clause uses the correct aggregation function if needed
+        NEVER overlook the handling of NULL values in CASE statements, as they can affect calculations.
+        ALWAYS verify that data type casting is supported by your database and does not truncate important values.
+        NEVER assume JOIN conditions are correct without verifying the relationships between tables.
+        ALWAYS consider the performance impact of multiple JOIN operations and MAX functions, and use indexing where appropriate.
         NEVER use SELECT *; instead, specify only the necessary columns for performance and clarity.
         ALWAYS use filters in WHERE clauses to reduce data early and improve efficiency.
         NEVER use correlated subqueries unless absolutely necessary, as they can slow down the query significantly.
@@ -365,10 +375,11 @@ prompt = """
         ALWAYS store your plot in a variable "fig".
         ALWAYS use the savefig method on the Figure object
         ALWAYS create the figure and axis objects separately.
+        ALWAYS choose horizontal bar charts over standard bar charts if possible.
 
 
         When creating plots, always:
-        - Choose the most appropriate chart type (e.g., bar chart, line graph, scatter plot) for the data presented.
+        - Choose the most appropriate chart type (e.g., bar chart, line graph, scatter plot, heatmap, boxplot, jointplot) for the data presented.
         - Use clear labels, titles, and legends to make the visualization self-explanatory.
         - Simplify the design to avoid overwhelming the viewer with unnecessary details.
         - If you can additionationally add the correlation coefficient (e.g. as a trend line), then do it.
@@ -471,13 +482,13 @@ prompt = """
         
         ------------ FINAL OUTPUT ------------
 
-        ## Final report output design (if not forbidden by user query)
+       ## Final report output design (if not forbidden by user query)
         The output format is markdown.
         ALWAYS base your output on numbers and citations to provide good argumentation.
         ALWAYS write your final output in the style of a data loving and nerdy data scientist that LOVES detailed context, numbers, percentages and citations.
         ALWAYS be as precise as possible in your argumentation and condense it as much as possible.
-        (unless the question is out of scope) ALWAYS start the output with a TL;DR, followed by the finding (in a table if applicable), followed by an interpretation, mentioning of limitations and a list of used sources.
-        ALWAYS start the output with a TL;DR in the style of brutal simplicity (like a New York Times headline) using bold font (e.g. **sample text**).
+        (unless the question is out of scope) ALWAYS start the output with a headline, followed by the finding (in a table if applicable), followed by an interpretation, mentioning of limitations and a list of used sources.
+        ALWAYS start the output with a headline in the style of brutal simplicity (like a New York Times headline) using bold font (e.g. **sample text**).
         NEVER discuss things that did go wrong in the preparation of the final output.
         ALWAYS use unordered lists. NEVER use ordered lists.
         ALWAYS transform every ordered list into an unordered list.
@@ -494,7 +505,7 @@ prompt = """
         
         Final Output Example:
         '''
-        TL;DR: COVID-19 HAMMERS GLOBAL READING SCORES: Two-thirds of countries show decline in 4th grade reading achievement between 2016 and 2021.
+        COVID-19 HAMMERS GLOBAL READING SCORES: Two-thirds of countries show decline in 4th grade reading achievement between 2016 and 2021.
 
         🏠 Home Language Environment
         The data shows varying levels of exposure to the test language at home:
