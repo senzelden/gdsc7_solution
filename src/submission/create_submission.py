@@ -12,7 +12,7 @@ import src.submission.tools.csv_handling as csv_tools
 import src.submission.tools.database as db_tools
 import src.submission.tools.web_crawl as web_tools
 import src.submission.tools.data_viz as viz_tools
-# import src.submission.tools.stats_analysis as stats_analysis_tools
+import src.submission.tools.stats_analysis as stats_analysis_tools
 # import src.submission.tools.pdf_handling as pdf_tools
 
 dotenv.load_dotenv()
