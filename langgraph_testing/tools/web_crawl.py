@@ -2,6 +2,45 @@ from langchain_core.tools import tool
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
+from langchain_community.tools import DuckDuckGoSearchResults
+
+@tool
+def duckduckgo_search(query: str) -> list:
+    """
+    Perform a DuckDuckGo search and return the results.
+
+    Parameters:
+    query (str): The search string to query DuckDuckGo.
+
+    Returns:
+    list: A list of dictionaries containing the search results. Each dictionary contains:
+          - "title": The title of the result
+          - "snippet": A snippet of the result
+          - "link": The URL of the result
+          If an error occurs, a string with the error message is returned.
+
+    Example:
+    >>> results = duckduckgo_search("Obama")
+    >>> if isinstance(results, str):
+    >>>     print("Error:", results)
+    >>> else:
+    >>>     for result in results:
+    >>>         print(result["title"], result["link"])
+    """
+    try:
+        # Initialize the wrapper with the specified parameters
+        wrapper = DuckDuckGoSearchAPIWrapper(region="en-us", time="a", max_results=3)
+        
+        # Create the search object with source fixed to "text"
+        search = DuckDuckGoSearchResults(api_wrapper=wrapper, source="text")
+        
+        # Invoke the search and return the results
+        results = search.api_wrapper.results(query, max_results=3, source="text")
+        return results
+    except Exception as e:
+        # Return the error message as a string
+        return str(e)
 
 
 @tool
