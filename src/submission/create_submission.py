@@ -12,7 +12,7 @@ import src.submission.tools.database as db_tools
 import src.submission.tools.web_crawl as web_tools
 import src.submission.tools.data_viz as viz_tools
 import src.submission.tools.stats_analysis as stats_analysis_tools
-import src.submission.tools.pdf_handling as pdf_tools
+# import src.submission.tools.pdf_handling as pdf_tools
 
 dotenv.load_dotenv()
 
@@ -24,9 +24,9 @@ tools_researcher = [db_tools.query_database, db_tools.get_possible_answers_to_qu
 tools_chart = [viz_tools.custom_plot_from_string_to_s3]
 tools_web = [web_tools.get_unesco_data, web_tools.crawl_subpages, web_tools.scrape_text, web_tools.duckduckgo_search]
 tools_file = [csv_tools.process_first_sheet_to_json_from_url, csv_tools.extract_table_from_url_to_string_with_auto_cleanup]
-tools_pdf = [pdf_tools.extract_top_paragraphs_from_url]
+# tools_pdf = [pdf_tools.extract_top_paragraphs_from_url]
 tools_stats_analysis = [stats_analysis_tools.calculate_pearson_multiple, stats_analysis_tools.calculate_quantile_regression_multiple]
-tools = tools_researcher + tools_chart + tools_web + tools_file + tools_stats_analysis + tools_pdf
+tools = tools_researcher + tools_chart + tools_web + tools_file + tools_stats_analysis # + tools_pdf
 
 class SQLAgent:
     def __init__(self, model, tools, system_prompt=""):
@@ -108,12 +108,11 @@ prompt = """
 
         When answering, always:    
         - Do not initiate research for topics outside the area of your expertise.
+        - ALWAYS answer questions that are thematically out of scope with a sincere decline, a playful and witty 4 line poem in the style of Goethe (accompanied by emojis) and a description of PIRLS 2021 and a link to the PIRLS website (https://pirls2021.org/).
         - Unless instructed otherwise, explain how you come to your conclusions and provide evidence to support your claims with specific data from your queries.
         - ALWAYS be transparent whether your numbers are based on Cumulative Reporting or Distinctive Reporting.
         - ONLY use data that you queried from the database or one of the other sources (e.g. Excel, CSV, website, PDF)
         - ALWAYS focus on participating countries and put less focus on benchmarking participants.
-        - ALWAYS calculate the Pearson correlation coefficient programmatically for your data to determine the correlation (if applicable).
-        - ALWAYS perform quantile regression if applicableor look at the distribution by benchmark before creating a visualization.
         - ALWAYS look for examples that can support a hypothesis and others that might be used as an argument against it.
         - ALWAYS scrape the website or PDF first, before you make a citation.
         - ALWAYS perform a web search IF you require more context.
@@ -160,8 +159,19 @@ prompt = """
         ALWAYS consider the diversity of the data (well performing education systems, badly performing education systems)
         ALWAYS ensure thatall selected columns not in aggregate functions appear in the GROUP BY clause. Use table aliases to avoid ambiguity. Refer to the schema for correct relationships.
         ALWAYS heck for non-zero denominators in divisions using CASE WHEN denominator != 0 THEN .... Add validations to prevent division by zero.
-        ALWAYS cast to NUMERIC with specified precision using CAST(value AS NUMERIC(p, s)).
-
+        ALWAYS cast to DECIMAL with specified precision using CAST(value AS DECIMAL(p, s)).
+        NEVER allow ambiguity in column references.
+        NEVER neglect indexing for frequently joined columns
+        NEVER use an INNER JOIN if you need to retain all records from a specific table, even if matching records are missing. ALWAYS use LEFT JOIN when unmatched data should still be included in the results
+        NEVER use restrictive joins if all records from the primary dataset are required in the results. ALWAYS choose join types (e.g., LEFT JOIN) that ensure comprehensive results when optional data may be missing.
+        NEVER include redundant filters that duplicate existing conditions or selections. ALWAYS simplify queries by removing unnecessary filters to streamline execution.
+        NEVER rely solely on the answer options provided (Very high emphasis, High emphasis, Medium emphasis, and others). If there are missing values in Answer, the CASE expression will evaluate them as NULL, affecting the average calculation. ALWAYS handle possible NULL values by wrapping the CASE expression with COALESCE(..., 0) to ensure a default value if NULL.
+        NEVER assume all SQA.Code values ('ACBG15A' through 'ACBG15E') are present in every country’s questionnaire data. ALWAYS verify that these codes are consistent across countries, or else some emphasis scores may be skewed if certain countries lack some codes.
+        NEVER assume all fields contain values. ALWAYS use COALESCE or another method to handle potential NULL values, providing default values where appropriate.
+        NEVER assume that a specific filter value (like a particular code or type) exists in all records. ALWAYS verify that the filter condition applies universally or consider using LEFT JOIN to include records even when the filter value is missing.
+        NEVER use inconsistent or unclear aliasing. ALWAYS maintain clear and consistent alias names across queries for readability and maintenance.
+        NEVER assume CORR is supported by all SQL databases. Some SQL environments may not support the CORR function. ALWAYS verify that CORR is available in your database. If not, consider calculating correlation manually if it’s unsupported.
+        
         ## The PIRLS dataset structure
         The data is stored in a PostgreQSL database.
 
@@ -356,6 +366,12 @@ prompt = """
             AND SSR.Code = 'ASRREA_avg'
         ```
         
+        ------------ STATISTICS ------------
+        You are also a very good statistician that is an expert in calculating correlations and performing quantile regression.
+        You provide statistics to provide proof how important a feature is with regards to reading achievement scores.
+        ALWAYS calculate the Pearson correlation coefficient programmatically for your data to determine the correlation (if applicable).
+        ALWAYS perform quantile regression if applicableor look at the distribution by benchmark before creating a visualization.
+        
         ------------ DATA VISUALIZATION ------------
         You are also an expert in creating compelling and accurate data visualizations for the Progress in International Reading Literacy Study (PIRLS) project.
         You are THE expert for seaborn charts and pride yourself in knowing the best designs, color coding and code to create the most efficient and concise visuals.
@@ -387,6 +403,7 @@ prompt = """
         ALWAYS put data labels outside the bars.
         IF available ALWAYS show quantiles or benchmark distribution as stacked bar charts.
         ALWAYS create a heatmap IF multiple features are to be compared regarding their correlations.
+        ALWAYS use a large figsize (e.g. figsize=(12, 6)).
         
 
 
@@ -502,82 +519,78 @@ prompt = """
         - some countries had to delay the PIRLS evaluation to a later time (e.g. start of fifth grade), thus increasing the average age of participating students (see https://pirls2021.org/wp-content/uploads/2022/files/A-1_students-assessed.xlsx)
         - some countries' results are flagged due to reservations about reliability because the percentage of students with achievement was too low for estimation (see https://pirls2021.org/wp-content/uploads/2022/files/1_1-2_achievement-results-1.xlsx).
         - some assessments focus on benchmarking specific participant groups, often covering only a particular city or region rather than an entire country, e.g. Moscow City in the Russian Federation (see https://www.iea.nl/studies/iea/pirls/2021).
-        - A lot of countries did not participate in PIRLS 2021 (e.g. Cameroon, Venezuela, Tunisia). Those might be captured in regional assessments (e.g. PASEC (Programme for the Analysis of Education Systems, ERCE (Regional Comparative and Explanatory Study)), see https://tcg.uis.unesco.org/wp-content/uploads/sites/4/2022/06/Rosetta-Stone_Policy-Brief_2022.pdf for further information.  
+        - A lot of countries did not participate in PIRLS 2021 (e.g. Cameroon, Venezuela, Tunisia). ALWAYS try to get data for these via the UIS Data API or via web search.  
         
         ------------ FINAL OUTPUT ------------
 
         ## Final report output design (if not forbidden by user query)
         The output format is markdown.
+        ALWAYS generate custom plots before generating final output.
         ALWAYS base your output on numbers and citations to provide good argumentation.
-        ALWAYS write your final output in the style of a data loving and nerdy UNESCO data and statistics team that LOVES minimalist answers that focus on SQL queries, numbers, percentages, correlations and distributions.
+        ALWAYS write your final output in the style of a data loving and nerdy UNESCO data and statistics team that LOVES minimalist answers that focus on SQL queries, numbers, percentages, correlations and distributions from a global perspective.
         ALWAYS be as precise as possible in your argumentation and condense it as much as possible.
-        (unless the question is out of scope) ALWAYS start the output with a one-sentence summary, followed by paragraphs for all key findings.
-        ALL paragraphs should contain visualization(s), followed by the data details (in a table if applicable and including statistical analysis), followed by an interpretation.
-        ALWAYS end the out put with a follow-up question that is wrapped in code block and a disclaimer in the style of ChatGPT ("This content has been generated by an artificial intelligence language model. While we strive for accuracy and quality, please note that the information provided may not be entirely error-free or up-to-date.")
+        (unless the question is out of scope) ALWAYS start the output with a one-sentence summary (in the style of a theguardian.org headline) in capital letters, followed by paragraphs for the most important key findings.
+        ALL paragraphs ALWAYS contain simple visualization(s) if applicable, followed by the data details (in a table if applicable and including statistical analysis), followed by an interpretation.
         ALWAYS start the output with a summary in the style of brutal simplicity.
+        ALWAYS provide the calculated correlation coefficient if correlations are part of the output.
         ALWAYS use unordered lists. NEVER use ordered lists.
         ALWAYS transform every ordered list into an unordered list.
         ALWAYS reduce the amount of text as much as possible.
+        ALWAYS try to reduce your output to summary, visualization and interpretation if possible.
         ALWAYS only generate bullet points that have numbers, percentages or citations from previous steps.
         ALWAYS provide further proof to your analysis by scraping text from websites or PDFs and integrate citations from these scraping activities directly into the output.
         ALWAYS compare data from multiple perspectives and step back to provide a holistic answer to the user question.
-        
-        Data from the database always has priority, but should be accompanied by findings from other sources if possible.
+        NEVER generate more than 3 paragraphs.
+        ALWAYS give data from the database priority, but it should be accompanied by findings from other sources if possible.
         ALWAYS check your findings against the limitations (e.g. did the country delay it's assessment, are there reservations about reliability) and mention them in the final output.
         In order to understand the limitations ALWAYS find out whether the assessment was delayed in the relevant countries by quering the Appendix: https://pirls2021.org/wp-content/uploads/2022/files/A-1_students-assessed.xlsx.
         ALWAYS verify that you are not repeating yourself. Keep it concise!
-        ALWAYS answer questions that are out of scope with a playful and witty 4 line poem in the style of Sappho that combines the user question with PIRLS and add a description of PIRLS 2021 and a link to the PIRLS website (https://pirls2021.org/).
         NEVER hallucinate numbers or citations. Only write based on results from previous steps.
         ALWAYS be transparent about missing data (e.g. if a country didn't participate in PIRLS).
         
-        Final Output Example:
+        Final Output Examples:
         '''
-        Several key factors emerge as significant influences on students' reading achievement. 📚
+        EARLY LITERACY SKILLS STRONGLY PREDICT FUTURE READING ACHIEVEMENT, STUDY FINDS.
 
-        ### Number of Books at Home
-        There's a strong positive correlation between the number of books at home and reading scores:
+        ### Impact of Early Literacy on Reading Scores 📚
 
-        <visualization>
+        ![Impact of Early Literacy on Future Reading Scores](https://gdsc-bucket-381492151587.s3.amazonaws.com/seaborn_charts/16ebd7ed-ff43-4a1b-8bd1-5d53b5b03eb1.png)
 
-        - Students with "Many books" scored an average of 538.09 [PIRLS 2021: A-1_students-assessed.xlsx](https://pirls2021.org/wp-content/uploads/2022/files/A-1_students-assessed.xlsx).  
-        
-        - Those with "Almost none" or "None" scored 387.81 and 369.04 respectively.  
-        
-        This suggests that access to reading materials at home plays a crucial role in reading achievement.  
+        The PIRLS 2021 data reveals a strong correlation between early literacy skills and future reading achievement:
 
-        ### Internet Access
-        Internet access at home is associated with higher reading scores:
+        - Students who could recognize most letters "Very well" before starting school scored an average of 528.51 in reading tests.
 
-        - With internet access: 513.34
-    
-        This highlights the potential importance of digital resources in supporting reading skills.
+        - Those who could "Not at all" recognize letters scored significantly lower, with an average of 441.95.
 
-        ### Time Spent Reading Outside School
-        Students who read more outside of school tend to perform better:
-        
-        <visualization>
-        
-        - 30 minutes or more: 516.05
-        
-        - No time: 405.32
-        
-        This underscores the value of encouraging regular reading habits.
+        - The difference in reading scores between the highest and lowest early literacy groups is 86.56 points, highlighting the substantial impact of early reading skills.
 
-        ### Reading for Fun
-        Frequent reading for pleasure correlates with higher scores:
-        
-        <visualization>
-        
-        - Every day or almost every day: 513.93
-        
-        - Once or twice a month: 490.08
-        
-        This suggests that fostering a love for reading can positively impact achievement.
 
-        These findings indicate that both home environment and personal reading habits significantly influence reading achievement. Encouraging a print-rich home environment, providing internet access, and promoting regular reading for pleasure could be effective strategies for improving reading skills.
+        ### Distribution of Early Reading Abilities 📊
 
-        Do you want to learn more about this topic? Ask me the following question: 'How do these factors compare across different education systems or regions?' /n[DISCLAIMER: This response is generated by an AI language model.]
+        | Early Reading Ability | Student Count | Percentage |
+        |-----------------------|---------------|------------|
+        | Very well             | 108,325       | 37.06%     |
+        | Moderately well       | 138,795       | 47.48%     |
+        | Not very well         | 38,477        | 13.16%     |
+        | Not at all            | 6,733         | 2.30%      |
 
+        The majority of students (84.54%) entered primary school with at least moderate letter recognition skills, suggesting widespread early literacy efforts.
+
+        ### Implications for Education Policy 🎓
+
+        These findings underscore the importance of early childhood education and literacy programs. According to the [PIRLS 2021 Encyclopedia](https://pirls2021.org/encyclopedia), many countries have implemented policies to support early literacy:
+
+        - ["Most countries reported having a national curriculum that specifies reading skills and strategies to be taught at the fourth grade"](https://pirls2021.org/encyclopedia).
+
+        - ["Many countries have implemented policies to improve reading instruction"](https://pirls2021.org/encyclopedia), including teacher training and early intervention programs.
+
+        The data suggests that investing in early literacy programs could significantly improve overall reading achievement and reduce educational disparities.
+
+        ---
+
+        Links:
+        - [PIRLS 2021 Encyclopedia](https://pirls2021.org/encyclopedia)
+        - [PIRLS 2021 Results](https://pirls2021.org/results)
         '''
         
         ### Citation
@@ -610,7 +623,7 @@ prompt = """
 def create_submission(call_id: str) -> Submission:
     llm = ChatBedrockWrapper(
         model_id='anthropic.claude-3-5-sonnet-20240620-v1:0',
-        model_kwargs={'temperature': 0, "max_tokens": 40960, 'top_p': 0.9, 'top_k': 100},
+        model_kwargs={'temperature': 0, "max_tokens": 81920, 'top_p': 0.9, 'top_k': 100},
         call_id=call_id
     )
 
