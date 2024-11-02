@@ -116,7 +116,91 @@ def create_quickchart_url(
         return f"Request to QuickChart API failed: {e}"
     
 
+@tool
+def plotly_plot_from_string_to_s3(plot_code_string):
+    """
+    Executes custom plot code from a string, generates a plotly plot,
+    uploads it to S3, and returns the S3 URL.
 
+    Args:
+        plot_code_string (str): String containing the custom plotting code.
+
+    Returns:
+        str: Public URL of the uploaded image in S3.
+    
+    Example:
+        plot_code_string = 
+            '''
+            import plotly.express as px
+            import pandas as pd
+
+            # Define the dataset directly
+            mpg_data = {
+                "mpg": [18, 15, 16, 17, 14, 12, 13, 19, 20, 21],
+                "horsepower": [130, 165, 150, 140, 198, 220, 215, 110, 105, 95],
+                "weight": [3504, 3693, 3436, 3433, 4341, 4354, 4312, 4498, 4464, 4425],
+                "origin": ["USA", "USA", "USA", "USA", "USA", "USA", "USA", "USA", "USA", "Europe"]
+            }
+
+            # Convert the dataset to a pandas DataFrame
+            mpg = pd.DataFrame(mpg_data)
+
+            # Create a Plotly scatter plot
+            fig = px.scatter(mpg, x="horsepower", y="mpg", color="origin", size="weight",
+                             size_max=60, opacity=0.5, title="Miles per Gallon vs Horsepower",
+                             labels={"horsepower": "Horsepower", "mpg": "Miles per Gallon"})
+            
+            # Save the figure as an SVG file
+            fig.write_image("plotly_figure.svg")
+            '''
+    """
+    
+    try:
+        # Prepare a dictionary to capture variables from exec
+        local_vars = {}
+        
+        try:
+            # Execute the custom plotting code and capture local variables
+            exec(plot_code_string, {}, local_vars)
+        except Exception as e:
+            return f"Error during plot code execution: {str(e)}"
+        
+        # Get the 'fig' variable from the executed code
+        fig = local_vars.get('fig', None)
+        
+        if fig is None:
+            return "Error: The code did not produce a 'fig' object."
+
+        try:
+            # Save the plot to a temporary file (in memory)
+            img_data = BytesIO()
+            fig.savefig(img_data, format='png')
+            plt.close()
+            img_data.seek(0)
+        except Exception as e:
+            return f"Error during plot saving: {str(e)}"
+        
+        # Initialize a boto3 session and S3 client
+        session = boto3.Session()
+        s3 = session.client('s3')
+        bucket_name = "gdsc-bucket-381492151587"
+        object_name = f"plotly_charts/{uuid4()}.png"
+        
+        # Upload the image to S3 using upload_fileobj
+        try:
+            s3.upload_fileobj(img_data, bucket_name, object_name)
+        except Exception as e:
+            return f"Error during S3 upload: {str(e)}"
+
+        # Build and return the S3 URL
+        s3_url = f'https://{bucket_name}.s3.amazonaws.com/{object_name}'
+        print(f"Image successfully uploaded to: {s3_url}")
+        return s3_url
+    
+    except Exception as e:
+        return f"General error: {str(e)}"
+    
+    
 @tool
 def custom_plot_from_string_to_s3(plot_code_string):
     """
