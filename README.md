@@ -1,5 +1,4 @@
-# Capgemini Global Data Science Challenge 2024 README
-Solution of the team "Backpropagating_since_4th_grade" - CIS Germany
+# Global Data Science Challenge 2024 README
 
 ## Table of contents
 1. [Overview](#overview)
