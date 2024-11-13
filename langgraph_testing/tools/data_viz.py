@@ -5,6 +5,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 import boto3
+from guardrails.hub import ValidPython
+from guardrails import Guard
 from uuid import uuid4
 from io import BytesIO
 
@@ -239,16 +241,22 @@ def custom_plot_from_string_to_s3(plot_code_string):
                               height=6, data=mpg)
             '''
     """
+    # Setup Guard
+    guard = Guard().use(ValidPython, on_fail="exception")
     
     try:
         # Prepare a dictionary to capture variables from exec
         local_vars = {}
         
         try:
-            # Execute the custom plotting code and capture local variables
-            exec(plot_code_string, {}, local_vars)
+            guard.validate(plot_code_string)
+            try:
+                # Execute the custom plotting code and capture local variables
+                exec(plot_code_string, {}, local_vars)
+            except Exception as e:
+                return f"Error during plot code execution: {str(e)}"
         except Exception as e:
-            return f"Error during plot code execution: {str(e)}"
+                return f"Error during plot code evaluation: {str(e)}"
         
         # Get the 'fig' variable from the executed code
         fig = local_vars.get('fig', None)
