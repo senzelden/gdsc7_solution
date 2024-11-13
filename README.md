@@ -6,19 +6,8 @@ Solution of the team "Backpropagating_since_4th_grade" - CIS Germany
 2. [Setup](#setup)
    1. [Repository Structure](#repository-structure)
    2. [Dependencies](#dependencies)
-   3. [Usage](#usage)
-   4. [Hardware & Performance](#hardware--performance)
 3. [Methodology](#methodology)
-   1. [Data](#data)
-   2. [Model Description](#model-description)
-   3. [Class Imbalance and Augmentations](#class-imbalance-and-augmentations)
-   4. [Pre-trained vs. From Scratch](#pretrained-vs-trained-model)
-   5. [Making Classifications](#making-classifications)
-   6. [Model Evaluation](#model-evaluation)
-4. [Disclaimer](#disclaimer)
-5. [Contributors & Acknowledgements](#contributors--acknowledgements)
-6. [Licenses](#licenses)
-
+   1. [Solutions for robustness](#solutions-for-robustness)
 
 ## Overview
 This repository contains code to create an agentic system in LangGraph. The specific task was to equip policy-makers with a tool for guiding education interventions, ensuring decisions are based on accurate and actionable insights from PIRLS 2021. This README file provides an overview of the model, its functionality and how to use it. Refer to README files located in the sub-directories for in-depth explanation.  
@@ -88,17 +77,17 @@ sentence-transformers
 ## Methodology
 
 ### Solutions for robustness
-While a custom version of a ReAct architecture in LangGraph worked best for me regarding output quality and code simplicity, there were a few things that I tried out to stabilize the solution.
-**State Management**
-- results, links, decisions are captured in state to be used in later stages to reduce incentive for hallucinations (see DS01_Robust_Agent.ipynb)
-**Response Validation**
-- e.g. ensure only valid urls are shared, e.g. with custom is_valid_url function that checks whether a 200 response is returned (see DS01_Robust_Agent.ipynb, DS01_Langgraph_Guardrails.ipynb)
-**Error Handling**
-- for individual tools
-- also for overall run method to ensure an answer is provided even if a server error occurs
-**Output formatting for tools**
-- reduce variance
-**Few shot prompting**
-- for SQL queries, but also for visualization code and final output
-**Tool variety**
-- Having a set of tools that can find a reply, even if query in one source doesn't succeed (e.g. UIS data API, Duckduckgo search, Web scraping, Excel and PDF reader)
+While a custom version of a ReAct architecture in LangGraph worked best for me regarding output quality and code simplicity, there were a few things that I tried out to stabilize the solution.  
+**State Management**  
+- results, links, decisions are captured in state to be used in later stages to reduce incentive for hallucinations (see DS01_Robust_Agent.ipynb)  
+**Response Validation**  
+- e.g. ensure only valid urls are shared, e.g. with custom is_valid_url function that checks whether a 200 response is returned (see DS01_Robust_Agent.ipynb, DS01_Langgraph_Guardrails.ipynb)  
+**Error Handling**  
+- for individual tools  
+- also for overall run method to ensure an answer is provided even if a server error occurs  
+**Output formatting for tools**  
+- reduce variance  
+**Few shot prompting**  
+- for SQL queries, but also for visualization code and final output  
+**Tool variety**  
+- Having a set of tools that can find a reply, even if query in one source doesn't succeed (e.g. UIS data API, Duckduckgo search, Web scraping, Excel and PDF reader)  
