@@ -78,16 +78,21 @@ sentence-transformers
 
 ### Solutions for robustness
 While a custom version of a ReAct architecture in LangGraph worked best for me regarding output quality and code simplicity, there were a few things that I tried out to stabilize the solution.  
-**State Management**  
-- results, links, decisions are captured in state to be used in later stages to reduce incentive for hallucinations (see DS01_Robust_Agent.ipynb)  
-**Response Validation**  
-- e.g. ensure only valid urls are shared, e.g. with custom is_valid_url function that checks whether a 200 response is returned (see DS01_Robust_Agent.ipynb, DS01_Langgraph_Guardrails.ipynb)  
-**Error Handling**  
+
+#### State Management  
+- results, links, decisions are captured in state to be used in later stages to reduce incentive for hallucinations (see DS01_Robust_Agent.ipynb)
+
+#### Response Validation  
+- e.g. ensure only valid urls are shared, e.g. with custom is_valid_url function that checks whether a 200 response is returned (see DS01_Robust_Agent.ipynb, DS01_Langgraph_Guardrails.ipynb)
+
+#### Error Handling  
 - for individual tools  
-- also for overall run method to ensure an answer is provided even if a server error occurs  
-**Output formatting for tools**  
-- reduce variance  
-**Few shot prompting**  
-- for SQL queries, but also for visualization code and final output  
-**Tool variety**  
+- also for overall run method to ensure an answer is provided even if a server error occurs
+
+#### Output formatting for tools  
+- reduce variance
+
+#### Few shot prompting
+- for SQL queries, but also for visualization code and final output
+#### Tool variety  
 - Having a set of tools that can find a reply, even if query in one source doesn't succeed (e.g. UIS data API, Duckduckgo search, Web scraping, Excel and PDF reader)  
